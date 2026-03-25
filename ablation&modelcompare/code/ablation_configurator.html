@@ -6,144 +6,129 @@
 <title>消融实验配置器</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-:root {
-  --bg:    #07080d;
-  --s1:    #0d0f16;
-  --s2:    #131520;
-  --s3:    #191b25;
-  --bd:    #22242f;
-  --bd2:   #2e3040;
-  --tx:    #d8dce8;
-  --mu:    #545870;
-  --dm:    #363848;
-
-  --c1: #4f9cf9;   /* EXP-1: 蓝 */
-  --c2: #a78bfa;   /* EXP-2: 紫 */
-  --c3: #34d399;   /* EXP-3: 绿 */
-  --c4: #fb923c;   /* EXP-4: 橙 */
-
-  --cq: #6366f1;   /* qwen3.5 */
-  --cg: #ec4899;   /* glm */
-  --cd: #14b8a6;   /* deepseek */
-  --cm: #f59e0b;   /* minimax */
+:root{
+  --bg:#07080d;--s1:#0d0f16;--s2:#131520;--s3:#191b25;
+  --bd:#22242f;--bd2:#2e3040;--tx:#d8dce8;--mu:#545870;--dm:#363848;
+  --c1:#4f9cf9;--c2:#a78bfa;--c3:#34d399;--c4:#fb923c;
+  --cq:#6366f1;--cg:#ec4899;--cd:#14b8a6;--cm:#f59e0b;
+  --douyin:#ff2d55;--youtube:#ff0000;
+  --cb:#22d3ee;  /* BASELINE 青色 */
 }
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--tx); font-family: 'Space Grotesk', sans-serif; min-height: 100vh; }
-
-.page { max-width: 1120px; margin: 0 auto; padding: 40px 20px 90px; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'Space Grotesk',sans-serif;min-height:100vh}
+.page{max-width:1140px;margin:0 auto;padding:36px 20px 90px}
 
 /* Header */
-header { margin-bottom: 38px; padding-bottom: 26px; border-bottom: 1px solid var(--bd); }
-.hrow { display: flex; align-items: center; gap: 13px; margin-bottom: 8px; }
-.logo { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg,var(--c1),var(--c2)); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-h1 { font-size: 20px; font-weight: 700; }
-.badge { font-family: 'IBM Plex Mono',monospace; font-size: 10px; padding: 2px 8px; border-radius: 3px; background: rgba(79,156,249,.1); color: var(--c1); border: 1px solid rgba(79,156,249,.18); letter-spacing: .07em; }
-.sub { font-size: 13px; color: var(--mu); line-height: 1.6; }
+header{margin-bottom:36px;padding-bottom:24px;border-bottom:1px solid var(--bd)}
+.hrow{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--c1),var(--c2));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+h1{font-size:20px;font-weight:700}
+.badge{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(79,156,249,.1);color:var(--c1);border:1px solid rgba(79,156,249,.18);letter-spacing:.07em}
+.sub{font-size:13px;color:var(--mu)}
 
 /* Layout */
-.layout { display: grid; grid-template-columns: 1fr 325px; gap: 18px; align-items: start; }
-@media(max-width:800px){ .layout { grid-template-columns: 1fr; } }
-
-/* Section label */
-.sec { font-family: 'IBM Plex Mono',monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mu); margin-bottom: 9px; display: flex; align-items: center; gap: 8px; }
-.sec::after { content:''; flex:1; height:1px; background: var(--bd); }
+.layout{display:grid;grid-template-columns:1fr 325px;gap:18px;align-items:start}
+@media(max-width:800px){.layout{grid-template-columns:1fr}}
+.sec{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--bd)}
 
 /* Card */
-.card { background: var(--s1); border: 1px solid var(--bd); border-radius: 10px; margin-bottom: 13px; }
-.ch { display: flex; align-items: center; gap: 9px; padding: 11px 15px; border-bottom: 1px solid var(--bd); background: var(--s2); border-radius: 9px 9px 0 0; }
-.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.ch h2 { font-size: 12px; font-weight: 600; }
-.mono { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); background: var(--s3); padding: 2px 6px; border-radius: 3px; }
-.cb { padding: 13px 15px; }
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;margin-bottom:13px}
+.ch{display:flex;align-items:center;gap:9px;padding:11px 15px;border-bottom:1px solid var(--bd);background:var(--s2);border-radius:9px 9px 0 0}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ch h2{font-size:12px;font-weight:600}
+.mono{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--mu);background:var(--s3);padding:2px 6px;border-radius:3px}
+.cb{padding:13px 15px}
+
+/* Platform selector */
+.platform-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0}
+.pc{border:2px solid var(--bd);border-radius:9px;padding:14px 16px;cursor:pointer;user-select:none;position:relative;background:var(--s2);transition:all .15s}
+.pc:hover{border-color:var(--bd2)}
+.pc.on.dy{border-color:var(--douyin);background:rgba(255,45,85,.05)}
+.pc.on.yt{border-color:var(--youtube);background:rgba(255,0,0,.05)}
+.pc-icon{font-size:22px;margin-bottom:6px}
+.pc-name{font-size:14px;font-weight:700;margin-bottom:3px}
+.pc-desc{font-size:11px;color:var(--mu);line-height:1.5}
+.pc-tag{margin-top:7px;display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dm);background:var(--s1);padding:3px 8px;border-radius:4px}
+.pc.on .pc-tag{color:var(--mu)}
+.pc::after{content:'◉';position:absolute;top:11px;right:12px;font-size:11px;opacity:0;transition:opacity .15s}
+.pc.on.dy::after{color:var(--douyin);opacity:1}
+.pc.on.yt::after{color:var(--youtube);opacity:1}
+
+/* Platform diff note */
+.diff-box{background:var(--s3);border:1px solid var(--bd);border-radius:7px;padding:11px 14px;font-size:11px;line-height:1.8;color:var(--mu)}
+.diff-box code{font-family:'IBM Plex Mono',monospace;background:var(--s1);padding:1px 5px;border-radius:3px;font-size:10px}
 
 /* Experiment cards */
-.egrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 13px; }
-@media(max-width:580px){ .egrid { grid-template-columns: 1fr; } }
-
-.ec {
-  border: 1.5px solid var(--bd); border-radius: 8px; padding: 12px 14px;
-  cursor: pointer; user-select: none; position: relative;
-  background: var(--s2); transition: border-color .15s, background .15s;
-}
-.ec:hover { border-color: var(--bd2); }
-.ec.on { background: var(--s3); }
-.ec.on.e1 { border-color: var(--c1); }
-.ec.on.e2 { border-color: var(--c2); }
-.ec.on.e3 { border-color: var(--c3); }
-.ec.on.e4 { border-color: var(--c4); }
-
-.eid { font-family: 'IBM Plex Mono',monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; margin-bottom: 4px; color: var(--mu); }
-.ec.on.e1 .eid { color: var(--c1); }
-.ec.on.e2 .eid { color: var(--c2); }
-.ec.on.e3 .eid { color: var(--c3); }
-.ec.on.e4 .eid { color: var(--c4); }
-
-.ename { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-.edesc { font-size: 11px; color: var(--mu); line-height: 1.55; }
-.evar { margin-top: 7px; display: inline-block; font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--dm); background: var(--s1); padding: 2px 7px; border-radius: 3px; }
-.ec.on .evar { color: var(--mu); }
-
-.ec::after { content:'✓'; position:absolute; top:10px; right:12px; font-size:11px; font-weight:700; opacity:0; transition: opacity .15s; }
-.ec.on.e1::after { color: var(--c1); opacity:1; }
-.ec.on.e2::after { color: var(--c2); opacity:1; }
-.ec.on.e3::after { color: var(--c3); opacity:1; }
-.ec.on.e4::after { color: var(--c4); opacity:1; }
+.egrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px}
+@media(max-width:580px){.egrid{grid-template-columns:1fr}}
+.ec{border:1.5px solid var(--bd);border-radius:8px;padding:12px 14px;cursor:pointer;user-select:none;position:relative;background:var(--s2);transition:all .15s}
+.ec:hover{border-color:var(--bd2)}
+.ec.on{background:var(--s3)}
+.ec.on.e1{border-color:var(--c1)}.ec.on.e2{border-color:var(--c2)}
+.ec.on.e3{border-color:var(--c3)}.ec.on.e4{border-color:var(--c4)}
+.eid{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.06em;margin-bottom:4px;color:var(--mu)}
+.ec.on.e1 .eid{color:var(--c1)}.ec.on.e2 .eid{color:var(--c2)}
+.ec.on.e3 .eid{color:var(--c3)}.ec.on.e4 .eid{color:var(--c4)}
+.ename{font-size:13px;font-weight:600;margin-bottom:4px}
+.edesc{font-size:11px;color:var(--mu);line-height:1.55}
+.evar{margin-top:7px;display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dm);background:var(--s1);padding:2px 7px;border-radius:3px}
+.ec.on .evar{color:var(--mu)}
+.ec::after{content:'✓';position:absolute;top:10px;right:12px;font-size:10px;font-weight:700;opacity:0;transition:opacity .15s}
+.ec.on.e1::after{color:var(--c1);opacity:1}.ec.on.e2::after{color:var(--c2);opacity:1}
+.ec.on.e3::after{color:var(--c3);opacity:1}.ec.on.e4::after{color:var(--c4);opacity:1}
 
 /* Pipeline */
-.prow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; font-family: 'IBM Plex Mono',monospace; font-size: 10.5px; }
-.ps { padding: 3px 7px; border-radius: 3px; white-space: nowrap; border: 1px solid var(--bd); background: var(--s3); color: var(--mu); }
-.ps.act { color: var(--tx); background: var(--s2); border-color: var(--bd2); }
-.ps.hi { color: #7dd3a8; border-color: rgba(125,211,168,.35); background: rgba(125,211,168,.07); }  /* 变化点 */
-.ps.warn { color: #fca5a5; border-color: rgba(252,165,165,.35); background: rgba(252,165,165,.06); } /* 缺少/置空 */
-.pa { color: var(--dm); padding: 0 3px; font-size: 9px; }
+.prow{display:flex;align-items:center;flex-wrap:wrap;gap:0;font-family:'IBM Plex Mono',monospace;font-size:10px}
+.ps{padding:2px 7px;border-radius:3px;white-space:nowrap;border:1px solid var(--bd);background:var(--s3);color:var(--mu)}
+.ps.act{color:var(--tx);background:var(--s2);border-color:var(--bd2)}
+.ps.hi{color:#7dd3a8;border-color:rgba(125,211,168,.35);background:rgba(125,211,168,.07)}
+.ps.warn{color:#fca5a5;border-color:rgba(252,165,165,.35);background:rgba(252,165,165,.06)}
+.pa{color:var(--dm);padding:0 3px;font-size:9px}
 
 /* Model pills */
-.mprow { display: flex; flex-wrap: wrap; gap: 7px; }
-.mp { cursor: pointer; user-select: none; border: 1.5px solid var(--bd); border-radius: 6px; padding: 5px 12px; font-family: 'IBM Plex Mono',monospace; font-size: 12px; color: var(--mu); background: var(--s2); transition: all .15s; }
-.mp:hover { border-color: var(--bd2); color: var(--tx); }
-.mp.on { color: #fff; }
-.mp.on.mq { background: var(--cq); border-color: var(--cq); }
-.mp.on.mg { background: var(--cg); border-color: var(--cg); }
-.mp.on.md { background: var(--cd); border-color: var(--cd); }
-.mp.on.mm { background: var(--cm); border-color: var(--cm); color: #1a0e00; }
+.mprow{display:flex;flex-wrap:wrap;gap:7px}
+.mp{cursor:pointer;user-select:none;border:1.5px solid var(--bd);border-radius:6px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mu);background:var(--s2);transition:all .15s}
+.mp:hover{border-color:var(--bd2);color:var(--tx)}
+.mp.on{color:#fff}
+.mp.on.mq{background:var(--cq);border-color:var(--cq)}
+.mp.on.mg{background:var(--cg);border-color:var(--cg)}
+.mp.on.md{background:var(--cd);border-color:var(--cd)}
+.mp.on.mm{background:var(--cm);border-color:var(--cm);color:#1a0e00}
 
 /* Right col */
-.rcol { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 13px; }
-
-/* Stats */
-.srow { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.sb { background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; padding: 11px 13px; text-align: center; }
-.sn { display: block; font-family: 'IBM Plex Mono',monospace; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
-.sl { font-size: 10px; color: var(--mu); text-transform: uppercase; letter-spacing: .07em; }
+.rcol{position:sticky;top:18px;display:flex;flex-direction:column;gap:12px}
+.srow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sb{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;text-align:center}
+.sn{display:block;font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sl{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.07em}
 
 /* Terminal */
-.tw { background: #060709; border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; }
-.tb { display: flex; align-items: center; gap: 5px; padding: 7px 11px; background: var(--s2); border-bottom: 1px solid var(--bd); }
-.td { width: 7px; height: 7px; border-radius: 50%; }
-.tl { font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); margin-left: 4px; }
-.tc { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); cursor: pointer; padding: 2px 7px; border: 1px solid var(--bd); border-radius: 3px; background: none; transition: all .15s; }
-.tc:hover { border-color: var(--bd2); color: var(--tx); }
-.tt { padding: 13px 14px; font-family: 'IBM Plex Mono',monospace; font-size: 11px; line-height: 1.9; color: #7dd3a8; white-space: pre-wrap; word-break: break-all; }
-.kw { color: #79b8ff; } .fl { color: #ffab70; } .vl { color: #9ecbff; }
+.tw{background:#060709;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.tb{display:flex;align-items:center;gap:5px;padding:7px 11px;background:var(--s2);border-bottom:1px solid var(--bd)}
+.td{width:7px;height:7px;border-radius:50%}
+.tl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--mu);margin-left:4px}
+.tc{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--mu);cursor:pointer;padding:2px 7px;border:1px solid var(--bd);border-radius:3px;background:none;transition:all .15s}
+.tc:hover{border-color:var(--bd2);color:var(--tx)}
+.tt{padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.9;color:#7dd3a8;white-space:pre-wrap;word-break:break-all}
+.kw{color:#79b8ff}.fl{color:#ffab70}.vl{color:#9ecbff}.st{color:#ffd700}
 
 /* File list */
-.fl { display: flex; flex-direction: column; gap: 5px; margin-bottom: 13px; }
-.fi { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: var(--s2); border: 1px solid var(--bd); border-radius: 6px; }
-.fn { font-family: 'IBM Plex Mono',monospace; font-size: 11px; }
-.fd { font-size: 10px; color: var(--mu); margin-top: 2px; }
-.fi.hi { border-color: rgba(79,156,249,.22); background: rgba(79,156,249,.04); }
+.fl-wrap{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
+.fi{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px}
+.fn{font-family:'IBM Plex Mono',monospace;font-size:11px}
+.fd{font-size:10px;color:var(--mu);margin-top:2px}
+.fi.hi{border-color:rgba(79,156,249,.22);background:rgba(79,156,249,.04)}
 
 /* Legend */
-.lgrow { display: flex; flex-direction: column; gap: 5px; }
-.li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.ld { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
-.lf { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--mu); background: var(--s3); padding: 1px 5px; border-radius: 3px; }
+.lgrow{display:flex;flex-direction:column;gap:5px}
+.li{display:flex;align-items:center;gap:8px;font-size:12px}
+.ld{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.lf{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mu);background:var(--s3);padding:1px 5px;border-radius:3px}
 
-hr { border: none; border-top: 1px solid var(--bd); margin: 9px 0; }
-code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(--s3); padding: 1px 5px; border-radius: 3px; }
-::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 2px; }
+hr{border:none;border-top:1px solid var(--bd);margin:9px 0}
+code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:var(--s3);padding:1px 5px;border-radius:3px}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
 </style>
 </head>
 <body>
@@ -155,43 +140,89 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
     <h1>消融实验配置器</h1>
     <span class="badge">ABLATION LAB</span>
   </div>
-  <p class="sub">为抖音视频评论生成系统配置消融实验，选择实验类型与对比模型，实时生成命令行</p>
+  <p class="sub">抖音 / YouTube 视频评论生成系统 — 选择平台、实验类型与对比模型，实时生成运行命令</p>
 </header>
 
 <div class="layout">
 <div><!-- LEFT -->
 
-  <div class="sec">实验类型（多选，保留至少一种）</div>
-  <div class="egrid">
+  <!-- 平台选择 -->
+  <div class="sec">第一步：选择目标平台</div>
+  <div class="card" style="margin-bottom:13px">
+    <div class="ch">
+      <div class="dot" style="background:var(--c1)"></div>
+      <h2>目标平台</h2>
+      <span class="mono">决定下载方式 & 简介来源</span>
+    </div>
+    <div class="cb">
+      <div class="platform-grid">
+        <div class="pc dy on" data-platform="douyin" onclick="togglePlatform('douyin')">
+          <div class="pc-icon">🎵</div>
+          <div class="pc-name">抖音 Douyin</div>
+          <div class="pc-desc">国内短视频平台，Playwright 拦截 aweme_detail API 获取视频信息</div>
+          <span class="pc-tag">下载：直链 mp4 &nbsp;|&nbsp; 简介：aweme.desc</span>
+        </div>
+        <div class="pc yt" data-platform="youtube" onclick="togglePlatform('youtube')">
+          <div class="pc-icon">📺</div>
+          <div class="pc-name">YouTube</div>
+          <div class="pc-desc">谷歌旗下视频平台，yt-dlp 下载，Data API v3 获取标题和描述</div>
+          <span class="pc-tag">下载：yt-dlp &nbsp;|&nbsp; 简介：视频标题（API）</span>
+        </div>
+      </div>
+      <!-- 平台差异说明 -->
+      <div class="diff-box" id="diff-box" style="margin-top:11px"></div>
+    </div>
+  </div>
 
+  <!-- 实验类型 -->
+  <div class="sec">第二步：选择实验类型（多选）</div>
+
+  <!-- BASELINE 开关 -->
+  <div class="card" style="margin-bottom:10px">
+    <div class="ch">
+      <div class="dot" style="background:var(--cb)"></div>
+      <h2>BASELINE — 完整 RAG 多模型对比</h2>
+      <span class="mono" style="color:var(--cb)">默认开启</span>
+    </div>
+    <div class="cb" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:12px;color:var(--mu);line-height:1.6;flex:1">
+        完整 Step1→2→4→5→3 + Phase2 标准 RAG 流程<br>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px">语义检索 → c_label 投票 → 示例提取 → 梗搜索 → 四模型各自生成</span><br>
+        <span style="font-size:11px">输出到独立的 <code>baseline_results.json</code>，同时并入 <code>ablation_all_results.json</code></span>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" id="baseline-on" checked onchange="update()"
+          style="width:16px;height:16px;accent-color:var(--cb);cursor:pointer">
+        <span style="font-size:13px;font-weight:600" id="baseline-label">开启</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="egrid">
     <div class="ec e1 on" data-exp="1" onclick="toggleExp(this)">
       <div class="eid">EXP-1</div>
       <div class="ename">有简介 + 直接生成</div>
-      <div class="edesc">Step2 正常获取简介；Phase2 直接调用模型生成，<strong>不传任何示例，不确定 c_label</strong></div>
+      <div class="edesc">Step2 正常获取简介；Phase2 <strong>直接调用模型</strong>，不传 c_label，不传任何示例</div>
       <span class="evar">验证：RAG 示例检索的整体贡献</span>
     </div>
-
     <div class="ec e2 on" data-exp="2" onclick="toggleExp(this)">
       <div class="eid">EXP-2</div>
       <div class="ename">无简介 + 直接生成</div>
-      <div class="edesc">Step2 <strong>简介置空</strong>；Phase2 直接调用模型生成，不传任何示例</div>
+      <div class="edesc">Step2 <strong>简介置空</strong>；Phase2 直接调用模型生成，不传示例</div>
       <span class="evar">验证：video_introduction 的独立贡献</span>
     </div>
-
     <div class="ec e3 on" data-exp="3" onclick="toggleExp(this)">
       <div class="eid">EXP-3</div>
       <div class="ename">同 label 随机模仿</div>
-      <div class="edesc">完整 Phase1；Phase2 在<strong>相同 label 样本中随机抽评论</strong>作示例，不确定 c_label</div>
+      <div class="edesc">完整 Phase1；Phase2 在<strong>相同 label 样本</strong>中随机抽评论作示例，不确定 c_label</div>
       <span class="evar">验证：语义检索相似性 vs 同label随机</span>
     </div>
-
     <div class="ec e4 on" data-exp="4" onclick="toggleExp(this)">
       <div class="eid">EXP-4</div>
       <div class="ename">跨 label 随机模仿</div>
       <div class="edesc">完整 Phase1；Phase2 随机抽取<strong>不同 label</strong> 的评论作为示例</div>
       <span class="evar">验证：label 分类精度（Step3）的影响</span>
     </div>
-
   </div>
 
   <!-- Pipeline 对比 -->
@@ -199,17 +230,17 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
     <div class="ch">
       <div class="dot" style="background:var(--c1)"></div>
       <h2>各实验 Pipeline 对比</h2>
-      <span class="mono" style="color:#7dd3a8">绿 = 差异点 / 红 = 缺失/置空</span>
+      <span class="mono" style="color:#7dd3a8">绿=差异/红=置空</span>
     </div>
     <div class="cb" id="pipe-body"></div>
   </div>
 
   <!-- 模型选择 -->
-  <div class="sec">Phase2 评论生成对比模型（多选）</div>
+  <div class="sec">第三步：选择评论生成模型（多选）</div>
   <div class="card">
     <div class="ch">
       <div class="dot" style="background:var(--cq)"></div>
-      <h2>评论生成模型</h2>
+      <h2>Phase2 评论生成模型</h2>
       <span class="mono">字段：{model}_generated_comment</span>
     </div>
     <div class="cb">
@@ -217,7 +248,7 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
         <div class="mp mq on" data-model="qwen3.5" onclick="toggleModel(this)">qwen3.5</div>
         <div class="mp mg on" data-model="glm" onclick="toggleModel(this)">glm</div>
         <div class="mp md on" data-model="deepseek-r1" onclick="toggleModel(this)">deepseek-r1</div>
-        <div class="mp mm on" data-model="minimax" onclick="toggleModel(this)">minimax</div>
+        <div class="mp mm on" data-model="llama" onclick="toggleModel(this)">llama</div>
       </div>
       <div style="margin-top:10px;font-size:11px;color:var(--mu)">
         ⚠️ 运行前请先 <code>ollama pull &lt;模型名&gt;</code> 拉取所有对比模型
@@ -228,28 +259,28 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
   <!-- 参数 -->
   <div class="card">
     <div class="ch"><div class="dot" style="background:var(--mu)"></div><h2>运行参数</h2></div>
-    <div class="cb" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+    <div class="cb" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
       <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px">
         <input type="checkbox" id="skip1" onchange="update()" style="accent-color:var(--c1)">
         <code>--skip-phase1</code>
         <span style="font-size:11px;color:var(--mu)">Phase1 已完成</span>
       </label>
-      <div style="display:flex;align-items:center;gap:7px;font-size:13px">
+      <div style="display:flex;align-items:center;gap:7px">
         <code>--top-k</code>
         <input type="number" id="topk" value="3" min="1" max="10" onchange="update()"
-          style="width:46px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+          style="width:44px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
       </div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:13px">
+      <div style="display:flex;align-items:center;gap:7px">
         <code>--examples-per-sample</code>
         <input type="number" id="eps" value="2" min="1" max="5" onchange="update()"
-          style="width:46px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+          style="width:44px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
       </div>
     </div>
   </div>
 
-  <!-- 输出文件 -->
+  <!-- 输出文件说明 -->
   <div class="sec">输出文件说明</div>
-  <div class="fl" id="file-list"></div>
+  <div class="fl-wrap" id="fl-wrap"></div>
 
 </div><!-- /LEFT -->
 
@@ -257,7 +288,11 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
 
   <div class="srow">
     <div class="sb">
-      <span class="sn" id="se" style="color:var(--c1)">4</span>
+      <span class="sn" id="sp-stat" style="color:var(--c1)">🎵</span>
+      <span class="sl">平台</span>
+    </div>
+    <div class="sb">
+      <span class="sn" id="se" style="color:var(--c3)">4</span>
       <span class="sl">实验类型</span>
     </div>
     <div class="sb">
@@ -284,21 +319,18 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
       <hr>
       <div style="font-size:11px;color:var(--mu);line-height:1.85">
         同时包含：<br>
-        <code style="color:var(--tx)">ablation_exp_type</code> — EXP-1/EXP-2/EXP-3/EXP-4<br>
-        <code style="color:var(--tx)">ablation_exp_name</code> — 实验名称<br>
+        <code style="color:var(--tx)">ablation_platform</code> — douyin / youtube<br>
+        <code style="color:var(--tx)">ablation_exp_type</code> — EXP-1/2/3/4<br>
         <code style="color:var(--tx)">ablation_variable</code> — 消融的变量<br>
-        <code style="color:var(--tx)">ablation_exp_pipeline</code> — 完整 Pipeline<br>
-        <code style="color:var(--tx)">exp_phase2_mode</code> — Phase2生成模式<br>
-        <code style="color:var(--tx)">exp_examples_count</code> — 示例数量（EXP-1/2为0）
+        <code style="color:var(--tx)">exp_phase2_mode</code> — 生成模式<br>
+        <code style="color:var(--tx)">exp_examples_count</code> — 示例数量
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="ch"><div class="dot" style="background:var(--dm)"></div><h2>ablation_results/ 目录</h2></div>
-    <div class="cb" style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:2.1;color:var(--mu)">
-      <div id="tree"></div>
-    </div>
+    <div class="ch"><div class="dot" style="background:var(--dm)"></div><h2>输出目录结构</h2></div>
+    <div class="cb" id="tree" style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:2.1;color:var(--mu)"></div>
   </div>
 
 </div><!-- /RIGHT -->
@@ -306,93 +338,120 @@ code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(
 </div>
 
 <script>
+let selPlatform = "douyin";
+let selBaseline = true;
 const selE = new Set(["1","2","3","4"]);
-const selM = new Set(["qwen3.5","glm","deepseek-r1","minimax"]);
+const selM = new Set(["qwen3.5","glm","deepseek-r1","llama"]);
 
-const EC = { "1":"var(--c1)", "2":"var(--c2)", "3":"var(--c3)", "4":"var(--c4)" };
-const MC = { "qwen3.5":"var(--cq)", "glm":"var(--cg)", "deepseek-r1":"var(--cd)", "minimax":"var(--cm)" };
+const EC = {"1":"var(--c1)","2":"var(--c2)","3":"var(--c3)","4":"var(--c4)"};
+const MC = {"qwen3.5":"var(--cq)","glm":"var(--cg)","deepseek-r1":"var(--cd)","llama":"var(--cm)"};
+const CB = "var(--cb)";
 
-// EXP-1: Step2(full)→Step4→Step5→Phase2(直接生成)        Step3 不在 pipeline
-// EXP-2: Step2(无简介)→Step4→Step5→Step3→Phase2(直接生成)
-// EXP-3: Step2(full)→Step4→Step5→Step3→Phase2(同label随机)
-// EXP-4: Step2(full)→Step4→Step5→Step3→Phase2(跨label随机)
 const PIPES = {
-  "1": [
-    {l:"Step1",  cls:"act"},
-    {l:"Step2 (含简介)", cls:"act"},
-    {l:"Step4",  cls:"act"},
-    {l:"Step5",  cls:"act"},
-    // 无 Step3
-    {l:"Phase2: 直接生成", cls:"hi", note:"不传任何示例"},
+  "BASELINE":[
+    {l:"Step1",c:"act"},
+    {l:"Step2(含简介)",c:"act"},
+    {l:"Step4",c:"act"},
+    {l:"Step5",c:"act"},
+    {l:"Step3",c:"act"},
+    {l:"Phase2: 完整RAG",c:"hi",note:"语义检索→c_label→示例→梗搜索→生成"},
   ],
-  "2": [
-    {l:"Step1",  cls:"act"},
-    {l:"Step2 (简介置空)", cls:"warn"},
-    {l:"Step4",  cls:"act"},
-    {l:"Step5",  cls:"act"},
-    {l:"Step3",  cls:"act"},
-    {l:"Phase2: 直接生成", cls:"hi", note:"不传任何示例"},
+  "1":[
+    {l:"Step1",c:"act"},
+    {l:"Step2(含简介)",c:"act"},
+    {l:"Step4",c:"act"},
+    {l:"Step5",c:"act"},
+    {l:"Phase2: 直接生成",c:"hi",note:"不传任何示例"},
   ],
-  "3": [
-    {l:"Step1",  cls:"act"},
-    {l:"Step2 (含简介)", cls:"act"},
-    {l:"Step4",  cls:"act"},
-    {l:"Step5",  cls:"act"},
-    {l:"Step3",  cls:"act"},
-    {l:"Phase2: 同label随机示例", cls:"hi"},
+  "2":[
+    {l:"Step1",c:"act"},
+    {l:"Step2(简介置空)",c:"warn"},
+    {l:"Step4",c:"act"},
+    {l:"Step5",c:"act"},
+    {l:"Step3",c:"act"},
+    {l:"Phase2: 直接生成",c:"hi",note:"不传任何示例"},
   ],
-  "4": [
-    {l:"Step1",  cls:"act"},
-    {l:"Step2 (含简介)", cls:"act"},
-    {l:"Step4",  cls:"act"},
-    {l:"Step5",  cls:"act"},
-    {l:"Step3",  cls:"act"},
-    {l:"Phase2: 跨label随机示例", cls:"hi"},
+  "3":[
+    {l:"Step1",c:"act"},
+    {l:"Step2(含简介)",c:"act"},
+    {l:"Step4",c:"act"},
+    {l:"Step5",c:"act"},
+    {l:"Step3",c:"act"},
+    {l:"Phase2: 同label随机示例",c:"hi"},
+  ],
+  "4":[
+    {l:"Step1",c:"act"},
+    {l:"Step2(含简介)",c:"act"},
+    {l:"Step4",c:"act"},
+    {l:"Step5",c:"act"},
+    {l:"Step3",c:"act"},
+    {l:"Phase2: 跨label随机示例",c:"hi"},
   ],
 };
 const VARS = {
-  "1": "RAG 示例检索的整体贡献",
-  "2": "video_introduction 的独立贡献（与EXP-1对比）",
-  "3": "语义检索相似性 vs 同label随机抽取",
-  "4": "label 分类精度（Step3）的影响",
+  "BASELINE":"基线 — 完整 RAG 无消融，四模型正常输出",
+  "1":"RAG 示例检索的整体贡献",
+  "2":"video_introduction 的独立贡献",
+  "3":"语义检索相似性 vs 同label随机",
+  "4":"label 分类精度（Step3）的影响",
 };
 
+const PLATFORM_DIFF = {
+  douyin: `<strong style="color:var(--tx)">抖音配置</strong><br>
+    下载方式：<code>Playwright</code> 拦截 <code>aweme_detail</code> API 响应<br>
+    简介来源：<code>aweme.desc</code>（视频发布时的文字描述）<br>
+    样本路径：<code>data_pre/json/douyin/sample/douyin_sample.json</code><br>
+    输出目录：<code>ablation_results/douyin/</code>`,
+  youtube: `<strong style="color:var(--tx)">YouTube 配置</strong><br>
+    下载方式：<code>yt-dlp</code>（支持多分辨率合并）<br>
+    简介来源：<code>YouTube Data API v3</code> 获取视频标题（作为简介）<br>
+    额外依赖：<code>google-api-python-client</code>, <code>yt-dlp</code><br>
+    输出目录：<code>ablation_results/youtube/</code>`,
+};
+
+function togglePlatform(p) {
+  selPlatform = p;
+  document.querySelectorAll(".pc").forEach(el => {
+    el.classList.toggle("on", el.dataset.platform === p);
+  });
+  update();
+}
 function toggleExp(el) {
   const e = el.dataset.exp;
-  if (selE.has(e)) {
-    if (selE.size <= 1) return;
-    selE.delete(e); el.classList.remove("on");
-  } else {
-    selE.add(e); el.classList.add("on");
-  }
+  if (selE.has(e)) { if (selE.size<=1) return; selE.delete(e); el.classList.remove("on"); }
+  else { selE.add(e); el.classList.add("on"); }
   update();
 }
 function toggleModel(el) {
   const m = el.dataset.model;
-  if (selM.has(m)) {
-    if (selM.size <= 1) return;
-    selM.delete(m); el.classList.remove("on");
-  } else {
-    selM.add(m); el.classList.add("on");
-  }
+  if (selM.has(m)) { if (selM.size<=1) return; selM.delete(m); el.classList.remove("on"); }
+  else { selM.add(m); el.classList.add("on"); }
   update();
+}
+
+function renderDiff() {
+  document.getElementById("diff-box").innerHTML = PLATFORM_DIFF[selPlatform];
 }
 
 function renderPipes() {
   const body = document.getElementById("pipe-body");
-  const exps = [...selE].sort();
-  body.innerHTML = exps.map((e, idx) => {
-    const color = EC[e];
-    const steps = PIPES[e].map((s, i) => {
-      const arrow = i < PIPES[e].length - 1 ? '<span class="pa">→</span>' : '';
-      const title = s.note ? ` title="${s.note}"` : '';
-      return `<span class="ps ${s.cls}"${title}>${s.l}</span>${arrow}`;
+  // BASELINE always first if enabled, then ablation exps
+  const entries = [];
+  if (selBaseline) entries.push(["BASELINE", CB]);
+  [...selE].sort().forEach(e => entries.push([e, EC[e]]));
+
+  body.innerHTML = entries.map(([key, color], i) => {
+    const steps = PIPES[key].map((s,j) => {
+      const arr = j < PIPES[key].length-1 ? '<span class="pa">→</span>' : '';
+      const tt  = s.note ? ` title="${s.note}"` : '';
+      return `<span class="ps ${s.c}"${tt}>${s.l}</span>${arr}`;
     }).join('');
-    const sep = idx > 0 ? '<hr>' : '';
+    const label = key === "BASELINE" ? "BASELINE" : `EXP-${key}`;
+    const sep   = i > 0 ? '<hr>' : '';
     return `${sep}<div style="margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:${color}">EXP-${e}</span>
-        <span style="font-size:11px;color:var(--mu)">${VARS[e]}</span>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:${color}">${label}</span>
+        <span style="font-size:11px;color:var(--mu)">${VARS[key]}</span>
       </div>
       <div class="prow">${steps}</div>
     </div>`;
@@ -400,29 +459,49 @@ function renderPipes() {
 }
 
 function renderFiles() {
-  const el = document.getElementById("file-list");
+  const el   = document.getElementById("fl-wrap");
   const exps = [...selE].sort();
-  el.innerHTML = exps.map(e => `<div class="fi">
+
+  let html = "";
+
+  // BASELINE file
+  if (selBaseline) {
+    html += `<div class="fi" style="border-color:rgba(34,211,238,.3);background:rgba(34,211,238,.04)">
+      <div style="font-size:13px;margin-top:1px">⭐</div>
+      <div>
+        <div class="fn" style="color:var(--cb)">baseline_results.json</div>
+        <div class="fd">BASELINE — 完整 RAG，四模型正常输出（多模型对比实验）</div>
+      </div>
+    </div>`;
+  }
+
+  // Ablation exp files
+  html += exps.map(e => `<div class="fi">
     <div style="font-size:13px;margin-top:1px">📄</div>
     <div>
       <div class="fn" style="color:${EC[e]}">ablation_exp_${e}.json</div>
       <div class="fd">EXP-${e} — ${VARS[e]}</div>
     </div>
-  </div>`).join('') +
-  `<div class="fi hi">
+  </div>`).join('');
+
+  // Merged file
+  const total = exps.length + (selBaseline ? 1 : 0);
+  html += `<div class="fi hi">
     <div style="font-size:13px;margin-top:1px">📦</div>
     <div>
       <div class="fn">ablation_all_results.json</div>
-      <div class="fd">全部 ${exps.length} 类实验合并，<code>ablation_exp_type</code> 字段区分</div>
+      <div class="fd">${total} 类实验全部合并，<code>ablation_exp_type</code> 字段区分（含 BASELINE）</div>
     </div>
   </div>
   <div class="fi">
     <div style="font-size:13px;margin-top:1px">📋</div>
     <div>
       <div class="fn">ablation_summary.json</div>
-      <div class="fd">实验配置、耗时统计、字段说明</div>
+      <div class="fd">实验配置、耗时统计、字段说明、平台信息</div>
     </div>
   </div>`;
+
+  el.innerHTML = html;
 }
 
 function renderLegend() {
@@ -435,10 +514,19 @@ function renderLegend() {
 
 function renderTree() {
   const exps = [...selE].sort();
+  const pd   = selPlatform;
+  let inner  = "";
+  if (selBaseline)
+    inner += `  <span style="color:var(--cb)">baseline_results.json</span><br>`;
+  exps.forEach(e =>
+    inner += `  <span style="color:${EC[e]}">ablation_exp_${e}.json</span><br>`
+  );
+  inner += `  <span style="color:var(--c1)">ablation_all_results.json</span><br>`;
+  inner += `  ablation_summary.json`;
+
   document.getElementById("tree").innerHTML =
-    exps.map(e => `<div><span style="color:${EC[e]}">ablation_exp_${e}.json</span></div>`).join('') +
-    `<div><span style="color:var(--c1)">ablation_all_results.json</span></div>` +
-    `<div>ablation_summary.json</div>`;
+    `<div>ablation_results/</div>` +
+    `<div style="margin-left:14px">${pd}/<br>${inner}</div>`;
 }
 
 function buildCmd() {
@@ -447,9 +535,12 @@ function buildCmd() {
   const skip   = document.getElementById("skip1").checked;
   const topk   = document.getElementById("topk").value;
   const eps    = document.getElementById("eps").value;
+
   let parts = ["python ablation_experiment.py"];
+  parts.push(`--platform ${selPlatform}`);
   if (exps.length < 4)   parts.push("--exp " + exps.join(" "));
   if (models.length < 4) parts.push("--models " + models.join(" "));
+  if (!selBaseline)      parts.push("--no-baseline");
   if (skip)              parts.push("--skip-phase1");
   if (topk !== "3")      parts.push("--top-k " + topk);
   if (eps  !== "2")      parts.push("--examples-per-sample " + eps);
@@ -458,18 +549,31 @@ function buildCmd() {
 
 function hl(s) {
   return s
-    .replace(/(python)/g, '<span class="kw">$1</span>')
-    .replace(/(ablation_experiment\.py)/g, '<span class="kw">$1</span>')
-    .replace(/(--[\w-]+)/g, '<span class="fl">$1</span>')
-    .replace(/\b(qwen3\.5|glm|deepseek-r1|minimax)\b/g, '<span class="vl">$1</span>')
-    .replace(/(?<= )([1-4])(?= |$)/g, '<span class="vl">$1</span>');
+    .replace(/(python)/g,'<span class="kw">$1</span>')
+    .replace(/(ablation_experiment\.py)/g,'<span class="kw">$1</span>')
+    .replace(/(--[\w-]+)/g,'<span class="fl">$1</span>')
+    .replace(/\b(qwen3\.5|glm|deepseek-r1|llama)\b/g,'<span class="vl">$1</span>')
+    .replace(/\b(douyin|youtube)\b/g,'<span class="st">$1</span>')
+    .replace(/(?<= )([1-4])(?= |$|\n)/g,'<span class="vl">$1</span>');
 }
 
 function update() {
+  // Sync baseline toggle
+  const cb = document.getElementById("baseline-on");
+  selBaseline = cb.checked;
+  document.getElementById("baseline-label").textContent = selBaseline ? "开启" : "关闭";
+  document.getElementById("baseline-label").style.color = selBaseline ? "var(--cb)" : "var(--mu)";
+
+  const pIcon = selPlatform === "douyin" ? "🎵" : "📺";
+  document.getElementById("sp-stat").textContent = pIcon;
   document.getElementById("se").textContent = selE.size;
   document.getElementById("sm").textContent = selM.size;
   document.getElementById("tt").innerHTML   = hl(buildCmd());
-  renderPipes(); renderFiles(); renderLegend(); renderTree();
+  renderDiff();
+  renderPipes();
+  renderFiles();
+  renderLegend();
+  renderTree();
 }
 
 function copyCmd() {
