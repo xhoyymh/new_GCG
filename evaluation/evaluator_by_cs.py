@@ -52,6 +52,7 @@
   python evaluator.py --no-baseline            # 跳过 BASELINE 评分
   python evaluator.py --no-external            # 跳过外部系统评分
   python evaluator.py --eval-dir path/to/out   # 自定义输出目录
+  可用
 """
 
 import os
