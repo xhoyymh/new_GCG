@@ -149,22 +149,27 @@ COMMENT_CONFIG = {
     ],
 
     # ── Ollama 生成参数 ───────────────────────────────────────────
-    "temperature":          0.75,
-    "top_p":                0.9,
-    "top_k_sampling":       40,
-    "repeat_penalty":       1.1,
-    "max_tokens":           512,
-    "seed":                 -1,
-    "mirostat":             0,
-    "mirostat_tau":         5.0,
-    "mirostat_eta":         0.1,
-    "tfs_z":                1.0,
-    "typical_p":            1.0,
-    "presence_penalty":     0.0,
-    "frequency_penalty":    0.0,
-    "num_ctx":              None,
-    "num_thread":           None,
+    "temperature": 0.75,          #控制随机性：越高越有创造力，越低越稳定
+    "top_p": 0.9,                 #核采样：只从累计概率前 p 的词中采样，越低越保守
+    "top_k_sampling": 40,         #Top-K 采样：从概率最高的前 k 个词中选，越大越随机
+    "repeat_penalty": 1.1,        # 重复惩罚：>1 会减少重复内容
+    "max_tokens": 512,            # 最大生成长度（token 数）
+    "seed": -1,                   # 随机种子：-1 表示每次随机；固定数字可复现输出
+
+    "mirostat": 0,                # Mirostat 动态采样：0=关闭，1=v1，2=v2（更稳定）
+    "mirostat_tau": 5.0,          # 目标困惑度：越高越发散（仅在 mirostat 启用时生效）
+    "mirostat_eta": 0.1,          # 调整速度：越高越快但可能不稳定（仅在 mirostat 启用时生效）
+
+    "tfs_z": 1.0,                 # Tail Free Sampling：越低越稳定；1.0=关闭
+    "typical_p": 1.0,             # Typical Sampling：越低越保守；1.0=关闭
+
+    "presence_penalty": 0.0,      # 新话题惩罚：越高越鼓励引入新内容
+    "frequency_penalty": 0.0,     # 频率惩罚：越高越减少重复词
+
+    "num_ctx": None,              # 上下文窗口大小（token），None=使用模型默认值
+    "num_thread": None            # CPU 线程数，None=自动选择（通常最佳）
 }
+
 
 # ── pydub / ffmpeg 初始化 ─────────────────────────────────────────
 import warnings as _warnings

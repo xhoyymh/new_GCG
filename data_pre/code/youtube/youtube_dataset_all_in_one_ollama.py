@@ -52,7 +52,7 @@ CHOUZHEN_JSON     = os.path.join(JSON_DIR, "youtube_chouzhen.json")
 DESCRIPTION_JSON  = os.path.join(JSON_DIR, "youtube_video_description.json")
 
 # Step 5 输出 / Step 6 输入输出路径
-SAMPLE_TRAIN_JSON = os.path.join(BASE_DIR, "json", "sample", "youtube_comments_sample.json")
+SAMPLE_TRAIN_JSON   = os.path.join(BASE_DIR, "json", "sample", "youtube_comments_sample.json")
 YOUTUBE_SAMPLE_JSON = os.path.join(BASE_DIR, "json", "youtube", "sample", "youtube_sample.json")
 
 # 抽帧 / Whisper / Ollama 参数
@@ -450,7 +450,13 @@ def step3_extract_frames_transcribe():
         return
 
     original_data = load_json_data(TOP5_COMMENT_JSON)
-    label_map     = {item["video_url"]: item for item in original_data}
+
+    # ── FIX: label_map 同时支持 video_url（原始 URL）和 save_id（数字 id）两种查找键 ──
+    # TOP5_COMMENT_JSON 中每条记录的 "id" 字段即为保存的文件名（数字），
+    # "video_url" 是原始 YouTube 链接。
+    # Step 3 遍历本地视频文件时文件名为 "{id}.mp4"，所以用 str(item["id"]) 做 key 更可靠。
+    label_map_by_id  = {str(item["id"]): item for item in original_data}
+    label_map_by_url = {item["video_url"]: item for item in original_data}
 
     os.makedirs(IMAGE_DIR, exist_ok=True)
     model       = whisper.load_model(WHISPER_MODEL_NAME)
@@ -461,7 +467,7 @@ def step3_extract_frames_transcribe():
 
     for video_file in tqdm(videos, desc="📦 处理视频", unit="个"):
         video_path       = os.path.join(VIDEO_DIR, video_file)
-        video_name       = os.path.splitext(video_file)[0]
+        video_name       = os.path.splitext(video_file)[0]   # e.g. "1", "2", ...
         video_output_dir = os.path.join(IMAGE_DIR, video_name)
         os.makedirs(video_output_dir, exist_ok=True)
 
@@ -476,14 +482,18 @@ def step3_extract_frames_transcribe():
         with open(txt_path, "w", encoding="utf-8") as tf:
             tf.write(full_transcript)
 
-        meta         = label_map.get(video_file, {})
+        # ── FIX: 优先用数字 id 查找，再 fallback 到 URL ──
+        meta = label_map_by_id.get(video_name) or label_map_by_url.get(video_file) or {}
+        if not meta:
+            print(f"  ⚠️  视频 {video_file} 在评论文件中找不到对应元数据，字段将为空。")
+
         label        = meta.get("label", "")
         introduction = meta.get("video_introduction", "")
 
         result_json.append({
             "id":                 video_name,
             "video_url":          video_file,
-            "video_introduction": introduction,
+            "video_introduction": introduction,   # ← 确保写入，供 Step 4 生成描述使用
             "label":              label,
             "image":              main_frames,
             "all_transcription":  full_transcript,
@@ -494,6 +504,7 @@ def step3_extract_frames_transcribe():
     with open(CHOUZHEN_JSON, "w", encoding="utf-8") as f:
         json.dump(result_json, f, ensure_ascii=False, indent=4)
     print(f"\n✅ 抽帧 & 转录完成，结果 → {CHOUZHEN_JSON}")
+    print(f"   （每条记录均含 video_introduction、label 字段）")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -617,7 +628,7 @@ def step4_generate_descriptions():
         output_data.append({
             "id":                 video_id,
             "video_url":          f"{video_id}.mp4",
-            "video_introduction": video_intro,
+            "video_introduction": video_intro,          # ← 保留 introduction
             "label":              video.get("label", ""),
             "all_transcription":  transcription,
             "video_description":  description,
@@ -627,8 +638,6 @@ def step4_generate_descriptions():
     with open(DESCRIPTION_JSON, "w", encoding="utf-8") as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
     print(f"\n✅ 视频描述已生成 → {DESCRIPTION_JSON}")
-
-
 
 
 # ═══════════════════════════════════════════════════════════
@@ -671,35 +680,82 @@ def _s6_cosine(a, b):
     mb  = _math.sqrt(sum(v*v for v in b.values()))
     return dot/(ma*mb) if ma and mb else 0.0
 
-# ── 5b. 情绪检测 ──────────────────────────────────────────────────
+# ── 5b. 情绪检测（English rules） ────────────────────────────────
+# Each tuple: (regex_pattern, emotion_label)
+# Covers both pure-English comments and mixed English/emoji comments.
 _S6_EMOTION_RULES = [
-    (r"\[泪奔\]|\[哭\]|\[流泪\]|\[泣不成声\]|\[大哭\]",                              "deep_empathy"),
-    (r"\[发怒\]|\[愤怒\]|\[鄙视\]",                                                        "anger"),
-    (r"\[捂脸\]|\[尬笑\]|\[黑脸\]|\[白眼\]",                                            "speechless"),
-    (r"哈哈|笑死|笑发财|笑喷|颠|太逗|太好笑|搞笑|好笑|绝了|\[大笑\]|\[呲牙\]|\[憨笑\]", "humor"),
-    (r"\[赞\]|\[鼓掌\]|好看|牛啊|厉害|超棒|真棒|666|绝绝子",                                 "admiration"),
-    (r"\[玫瑰\]|\[心\]|\[比心\]|\[爱心\]|可爱|萌|爱了",                                  "affection"),
-    (r"原来|宁可|结果|所以说|说白了|分明|这哪|不过是|罢了|才发现",                                 "irony"),
-    (r"有没有|请问|为什么|怎么|吗[？?]|啊[？?]",                                                   "curiosity"),
-    (r"\[耶\]|\[微笑\]|不错|还行|挺好",                                                        "mild_positive"),
+    # ── deep sadness / empathy ──────────────────────────────────
+    (r"(?i)\bcry(ing)?\b|😭|😢|🥺|\bi('m| am) (crying|sobbing|in tears)\b"
+     r"|\b(broke my heart|so sad|made me cry|tear(s)? up|heartbroken|moved me)\b",
+     "deep_empathy"),
+
+    # ── anger / disgust ─────────────────────────────────────────
+    (r"(?i)\b(angry|furious|outraged|disgusting|disgusted|appalled|wtf|what the hell"
+     r"|unacceptable|ridiculous|pathetic)\b|😡|🤬|🖕",
+     "anger"),
+
+    # ── speechless / awkward ────────────────────────────────────
+    (r"(?i)\b(speechless|i can('t| not) even|awkward|cringe|facepalm|embarrassing"
+     r"|why would (you|they|he|she)|i('m| am) dead)\b|🤦|😬|🙄|💀",
+     "speechless"),
+
+    # ── humor / laughter ────────────────────────────────────────
+    (r"(?i)\b(lol|lmao|lmfao|haha|hahaha|rofl|dying|i('m| am) dead"
+     r"|so funny|hilarious|can('t| not) stop laughing|this is gold|sending me"
+     r"|im weak|i wheezed|lost it|cracked (me )?up)\b|😂|🤣",
+     "humor"),
+
+    # ── admiration / praise ─────────────────────────────────────
+    (r"(?i)\b(amazing|awesome|incredible|genius|brilliant|well done|great job"
+     r"|respect|talented|goat|legendary|fire|banger|underrated|this deserves more"
+     r"|take my like|10/10|100/100|chef'?s kiss)\b|👏|🔥|💯|🤩|😍",
+     "admiration"),
+
+    # ── affection / cuteness ────────────────────────────────────
+    (r"(?i)\b(adorable|so cute|precious|love (this|you|it|them)|i love"
+     r"|obsessed|wholesome|my heart|aww+|omg so sweet)\b|❤️|🥰|😻|💕|💖|🫶",
+     "affection"),
+
+    # ── sarcasm / irony (verbal signals) ───────────────────────
+    (r"(?i)\b(oh sure|yeah right|totally|of course|absolutely|wow thanks"
+     r"|great job (genius|buddy|champ|einstein)|nice one|very helpful"
+     r"|because that('s| is) (totally |definitely |definitely)?normal"
+     r"|no way|sure jan|ok boomer|not like|as if|shocking|who would('ve)? thought)\b"
+     r"|🙃|😒",
+     "irony"),
+
+    # ── curiosity / questions ───────────────────────────────────
+    (r"(?i)\b(what (is|are|was|were|did|does|happened)|how (do|does|did|can|could)"
+     r"|(can|could) (you|someone) (explain|tell me|help)|i('m| am) confused"
+     r"|wait (what|why|how)|anyone (know|else)|where (is|can|do)|why (is|does|did|would)"
+     r"|(does|do) (anyone|somebody) know)\b|\?{2,}|❓",
+     "curiosity"),
+
+    # ── mild positive ────────────────────────────────────────────
+    (r"(?i)\b(nice|good|pretty good|not bad|decent|okay|ok|alright|fine"
+     r"|i like (this|it|that)|looks good|sounds good|cool)\b|👍|🙂",
+     "mild_positive"),
 ]
 
-def _s6_detect_emotion(text):
+def _s6_detect_emotion(text: str) -> str:
+    """Return emotion label for the comment text, or 'empty'/'neutral'."""
+    if not text.strip():
+        return "empty"
     for pattern, label in _S6_EMOTION_RULES:
         if re.search(pattern, text):
             return label
-    return "empty" if not text.strip() else "neutral"
+    return "neutral"
 
 # ── 5c. 关键词规则 ────────────────────────────────────────────────
 _S6_KW_RULES = [
-    (1, r"(电影|风格|国家).*(电影|风格|国家)|招队友|还差.*位|已有.*位",                    "Rhyming"),
-    (1, r"=|谐音|其实是|读作|[\u4e00-\u9fff]{1,4}[=＝][\u4e00-\u9fff]{1,4}|你有.*了么", "Puns (Homophones)"),
-    (2, r"第[二三四五六七八九十\d]天|下[集章节]|上[集章节]|霸总|总裁|女主|男主|男二|女二"
-        r"|医[生院][:：]|[她他][:：]|扣\s?[1一]|集合|来[报名演]|有没有想",              "Content Extraction"),
-    (2, r"原来我|原来是|竟然|居然|真的在想|我脑子|代入|以前.*现在"
-        r"|幻想|临死前|你知道的|没想到|怪不得|难怪|这不就是|这不是.*吗",                 "Meme Application"),
-    (3, r"这才是.*死法|有本事.*翻拍|宁可.*都不|服了|麻了|绷不住|破防|算了|随便|不是吧|就这","Sarcasm (Irony)"),
-    (4, r"哈哈|笑死|笑发财|颠|太逗|好玩|[来快]来|一起|冲|开冲",                          "Plain Humor"),
+    (1, r"(movie|style|country).*(movie|style|country)|recruiting teammates|still need.* positions|already have.* positions", "Rhyming"),
+    (1, r"=|homophonic|actually|read as|[\u4e00-\u9fff]{1,4}[=＝][\u4e00-\u9fff]{1,4}|have you.*?", "Puns (Homophones)"),
+    (2, r"day[two three four five six seven eight nine ten\d]|next[episode chapter]|previous[episode chapter]|domineering president|CEO|female lead|male lead|male second|female second"
+    r"|medical[hospital][:：]|[she he][:：]|debit\s?[1 one]|gather|come[sign up]|have you thought", "Content Extraction"),
+    (2, r"So it turns out I|So it was|Actually|Really|Really thinking|My brain|Substitute|Before.*Now"
+    r"|Fantasy|Before dying|You know|Unexpected|No wonder|No wonder|Isn't this|Isn't this.*", "Meme Application"),
+    (3, r"This is the way to die|If you're so capable, remake it|I'd rather.*than|I'm not convinced|Numb|Can't hold back|Breaks through|Forget it|Whatever|No way|That's it","Sarcasm (Irony)"),
+    (4, r"Haha|Laughing to death|Laughing to get rich|Crazy|Too funny|Fun|[Come on]|Come on|Let's|Charge|Let's go", "Plain Humor"),
 ]
 
 def _s6_kw_label(text):
@@ -788,7 +844,8 @@ def _s6_check_dup(records, name):
 # ── 5e. 主函数 ────────────────────────────────────────────────────
 def step5_label_comments():
     """Step 5: 对 top5 评论进行 C_label 标注，合并视频描述，写出 youtube_sample.json。
-    已存在于输出文件中的 id 直接保留，不重复处理。同时检测并报告重复 id。"""
+    已存在于输出文件中的 id 直接保留，不重复处理。同时检测并报告重复 id。
+    输出记录保证包含 label 和 video_introduction 字段。"""
     print("\n" + "═"*60)
     print("  Step 5 — 评论 C_label 自动标注")
     print("═"*60)
@@ -849,8 +906,10 @@ def step5_label_comments():
     index = _S6TrainingIndex(train_records, idf)
     print(f"  词表 {len(idf):,} tokens | 训练样本 {len(index.entries)} 条评论")
 
+    # ── top5 评论以 id 为 key 建立索引 ──
+    id_to_top5 = {str(r.get("id", "")): r for r in top5_records}
+
     # ── 逐条预测 ──
-    id_to_top5  = {str(r.get("id", "")): r for r in top5_records}
     new_items   = {}
     all_clabels = []
     skipped, added = 0, 0
@@ -858,12 +917,30 @@ def step5_label_comments():
     for vd in tqdm(desc_records, desc="标注评论"):
         vid_id      = str(vd.get("id", "")).strip()
         video_url   = vd.get("video_url", "")
-        video_intro = vd.get("video_introduction", "")
+        video_intro = vd.get("video_introduction", "")   # ← 来自 DESCRIPTION_JSON
         video_label = vd.get("label", "").strip()
         video_desc  = vd.get("video_description", "")
 
+        # video_intro 可能在 DESCRIPTION_JSON 中为空（Step 4 漏写），
+        # fallback 到 TOP5_COMMENT_JSON 中的同 id 记录
+        if not video_intro:
+            top5_meta  = id_to_top5.get(vid_id, {})
+            video_intro = top5_meta.get("video_introduction", "")
+
         if vid_id in existing:
-            tqdm.write(f"  [跳过] ID={vid_id} 已存在，保留原内容。")
+            # 即使跳过标注，也补齐 label / video_introduction（防止旧数据缺字段）
+            old = existing[vid_id]
+            updated = False
+            if not old.get("label") and video_label:
+                old["label"] = video_label
+                updated = True
+            if not old.get("video_introduction") and video_intro:
+                old["video_introduction"] = video_intro
+                updated = True
+            if updated:
+                tqdm.write(f"  [补齐] ID={vid_id} 已存在，补充缺失字段。")
+            else:
+                tqdm.write(f"  [跳过] ID={vid_id} 已存在，保留原内容。")
             skipped += 1
             continue
 
@@ -874,7 +951,8 @@ def step5_label_comments():
         record = {
             "id":                 vid_id,
             "video_url":          video_url,
-            "video_introduction": video_intro,
+            "video_introduction": video_intro,   # ← 保证输出含此字段
+            "label":              video_label,   # ← 保证输出含此字段
         }
         for i in range(1, 6):
             text   = ((top5.get(f"comment_{i}") or "") if top5 else "").strip()
@@ -884,7 +962,6 @@ def step5_label_comments():
             if clabel:
                 all_clabels.append(clabel)
 
-        record["label"]             = video_label
         record["video_description"] = video_desc
         new_items[vid_id] = record
         added += 1
@@ -902,6 +979,7 @@ def step5_label_comments():
 
     print(f"\n  新增：{added} 条 | 跳过（已存在）：{skipped} 条 | 文件总计：{len(output_list)} 条")
     print(f"  ✅ Step 5 完成 → {YOUTUBE_SAMPLE_JSON}")
+    print(f"     每条记录均含 label、video_introduction、video_description 字段")
 
     if all_clabels:
         total = len(all_clabels)
