@@ -1,44 +1,64 @@
 """
-消融实验 + BASELINE 多模型对比 评论质量评估脚本
-=================================================
+评论质量统一评估脚本
+====================
 
-在 evaluate_for_douyin.py / evaluate_for_youtube.py 基础上修改而来。
-评分对象：
-  ① 消融实验（EXP-1/2/3/4）ablation_all_results.json  ← 四种控制变量实验
-  ② BASELINE 多模型对比     baseline_results.json      ← 完整 RAG，四模型正常输出
-  ③ 额外评论通道            --extra 指定的 JSON 文件   ← 其他系统/人工评论
+一次调用同时评估以下所有评论来源：
 
-三组结果在同一套评分维度下打分，报告中分栏对比，方便直接写入论文。
+  ┌─── 抖音 (Douyin) ────────────────────────────────────────────┐
+  │  外部系统：evaluation/baseline/douyin/                        │
+  │    douyin_comments_GPT-4o.json                                │
+  │    douyin_comments_LOLgorithm.json                            │
+  │    douyin_comments_V2Xum-LLM.json                             │
+  │    douyin_comments_livechat.json                              │
+  │  消融实验：ablation_results/douyin/ablation_all_results.json  │
+  │  BASELINE ：ablation_results/douyin/baseline_results.json     │
+  └───────────────────────────────────────────────────────────────┘
 
-评分维度（各满分 10，总分 = 三维度均值，满分 10）：
-  原创性      与学习样本语义相似度（越低越好），含总结关键词/批次重复各 -3
-  具体性      当前评论相关度 vs 参考人类基线差距
-  风格符合性  情感一致性（10/5）- 长度惩罚（0~5），重复时情感分压至 1
+  ┌─── YouTube ───────────────────────────────────────────────────┐
+  │  外部系统：evaluation/baseline/youtube/                       │
+  │    youtube_comments_GPT-4o.json                               │
+  │    youtube_comments_LOLgorithm.json                            │
+  │    youtube_comments_V2Xum-LLM.json                            │
+  │    youtube_comments_livechat.json                             │
+  │  消融实验：ablation_results/youtube/ablation_all_results.json │
+  │  BASELINE ：ablation_results/youtube/baseline_results.json    │
+  └───────────────────────────────────────────────────────────────┘
 
-模型：
-  SentenceTransformer  all-MiniLM-L6-v2
-  情感分析             distilbert-base-uncased-finetuned-sst-2-english
+参考样本（原创性 & 具体性基线）—— 抖音和 YouTube 各自独立子目录：
+  evaluation/original_comment_from_platform/
+    douyin/    ← 抖音原评论，目录内所有 .json 文件均会被读取
+    youtube/   ← YouTube 原评论，同上
 
-输出文件（evaluation/result/{platform}/）：
-  ablation_eval_detail.json    每条 × 每模型 详细得分
-  ablation_eval_summary.csv    消融实验：按实验类型 × 生成模型汇总
-  baseline_eval_summary.csv    BASELINE：按生成模型汇总
-  ablation_eval_extra.csv      额外评论汇总（有 --extra 时生成）
-  ablation_eval_combined.csv   三组统一对比表（实验组 × 模型 → 各维度均值）
+评分维度（各满分 10，总分 = 三维度均值）：
+  原创性     与原平台评论的语义相似度（越低越好 → 得分越高）
+             惩罚：含总结关键词 -3，批次内重复 -3
+  具体性     当前评论与视频描述相关度 vs 参考人类基线的差距
+  风格符合性 情感一致性（10/5）- 长度惩罚（0~5），重复时压至 1
+
+输出（所有平台合并到一个 JSON，CSV 按平台分文件）：
+  evaluation/result/
+    all_eval_detail.json           ← 全平台全来源所有条目详细得分
+    douyin_eval_summary.csv        ← 抖音：按来源 × 模型汇总
+    youtube_eval_summary.csv       ← YouTube：按来源 × 模型汇总
+    douyin_eval_combined.csv       ← 抖音：各来源均值对比表
+    youtube_eval_combined.csv      ← YouTube：各来源均值对比表
 
 用法：
-  python ablation_evaluator.py                          # 交互选平台，全量评估
-  python ablation_evaluator.py --platform douyin        # 指定平台
-  python ablation_evaluator.py --platform douyin --extra my_sys.json other.json
-  python ablation_evaluator.py --platform douyin --no-ablation --no-baseline --extra my.json
+  python evaluator.py                          # 交互式选择平台（推荐）
+  python evaluator.py --platform douyin        # 直接指定抖音
+  python evaluator.py --platform youtube       # 直接指定 YouTube
+  python evaluator.py --platform both          # 两个平台都评，分开输出
+  python evaluator.py --platform douyin --no-ablation   # 抖音，跳过消融实验
+  python evaluator.py --no-baseline            # 跳过 BASELINE 评分
+  python evaluator.py --no-external            # 跳过外部系统评分
+  python evaluator.py --eval-dir path/to/out   # 自定义输出目录
 """
 
-import json
 import os
+import json
 import argparse
 import numpy as np
 import pandas as pd
-from collections import defaultdict
 from tqdm import tqdm
 
 from sentence_transformers import SentenceTransformer
@@ -47,81 +67,99 @@ from transformers import pipeline
 
 
 # ════════════════════════════════════════════════════════════════
-#  ★ 全局配置
+#  ★ 路径配置
 # ════════════════════════════════════════════════════════════════
 
-BASE_DIR             = r"D:\Desktop\video_comment_generation\ALLinone"
-SBERT_MODEL_NAME     = "all-MiniLM-L6-v2"
-SENTIMENT_MODEL_NAME = "distilbert-base-uncased-finetuned-sst-2-english"
+BASE_DIR = r"D:\Desktop\video_comment_generation\ALLinone"
 
-# 消融实验 & BASELINE 中四个模型生成的评论字段
+# 外部对比系统评论文件夹
+EXTERNAL_DIRS = {
+    "douyin":  os.path.join(BASE_DIR, "evaluation", "baseline", "douyin"),
+    "youtube": os.path.join(BASE_DIR, "evaluation", "baseline", "youtube"),
+}
+
+# 消融实验结果
+ABLATION_FILES = {
+    "douyin":  os.path.join(BASE_DIR, "ablation_results", "douyin", "ablation_all_results.json"),
+    "youtube": os.path.join(BASE_DIR, "ablation_results", "youtube", "ablation_all_results.json"),
+}
+
+# BASELINE 多模型对比结果
+BASELINE_FILES = {
+    "douyin":  os.path.join(BASE_DIR, "ablation_results", "douyin", "baseline_results.json"),
+    "youtube": os.path.join(BASE_DIR, "ablation_results", "youtube", "baseline_results.json"),
+}
+
+# 原平台评论（参考基线）— 抖音和 YouTube 各自独立子目录
+ORIGINAL_COMMENT_DIRS = {
+    "douyin":  os.path.join(BASE_DIR, "evaluation", "original_comment_from_platform", "douyin"),
+    "youtube": os.path.join(BASE_DIR, "evaluation", "original_comment_from_platform", "youtube"),
+}
+
+# 输出目录
+DEFAULT_EVAL_DIR = os.path.join(BASE_DIR, "evaluation", "result")
+
+# 消融/BASELINE 记录中四个模型的评论字段
 GENERATED_COMMENT_FIELDS = [
     "qwen3.5_generated_comment",
     "glm_generated_comment",
     "deepseek-r1_generated_comment",
-    "llama_generated_comment",
+    "minimax_generated_comment",
 ]
 
-# ── 平台专属参数 & 默认路径 ──────────────────────────────────────
-PLATFORM_CFG = {
+# ── 平台专属评分参数 ──────────────────────────────────────────────
+PLATFORM_PARAMS = {
     "douyin": {
-        "ideal_length":  30,
-        "summary_kws":   ["视频", "画面", "场景", "描述", "故事"],
-        "sample_files": [
-            os.path.join(BASE_DIR, "data_pre", "json", "douyin", "sample", "douyin_sample.json"),
-            os.path.join(BASE_DIR, "evaluation", "original_comments_for_douyin.json"),
-        ],#平台的原来的评论数据，包含了评论和视频描述，用于计算具体性基线和原创性评分
-        "reference_file": os.path.join(BASE_DIR, "evaluation", "original_comments_for_douyin.json"),
-        # 消融实验结果（EXP-1/2/3/4 合并）
-        "ablation_all":   os.path.join(BASE_DIR, "ablation&modelcompare", "json", "ablation_results", "douyin", "ablation_all_results.json"),
-        # BASELINE 多模型对比结果
-        "baseline_file":  os.path.join(BASE_DIR, "ablation_results", "douyin", "baseline_results.json"),
-        "eval_dir":       os.path.join(BASE_DIR, "evaluation", "result", "douyin"),
+        "ideal_length": 30,       # 理想评论长度（字符数）
+        "summary_kws":  ["视频", "画面", "场景", "描述", "故事"],
     },
     "youtube": {
-        "ideal_length":  72,
-        "summary_kws":   ["video", "scene", "description", "story", "footage"],
-        "sample_files": [
-            os.path.join(BASE_DIR, "data_pre", "json", "youtube", "sample", "youtube_sample.json"),
-            os.path.join(BASE_DIR, "evaluation", "original_comments_for_youtube.json"),
-        ],#平台的原来的评论数据，包含了评论和视频描述，用于计算具体性基线和原创性评分
-        "reference_file": os.path.join(BASE_DIR, "evaluation", "original_comments_for_youtube.json"),
-        "ablation_all":   os.path.join(BASE_DIR, "ablation_results", "youtube", "ablation_all_results.json"),
-        "baseline_file":  os.path.join(BASE_DIR, "ablation_results", "youtube", "baseline_results.json"),
-        "eval_dir":       os.path.join(BASE_DIR, "evaluation", "result", "youtube"),
+        "ideal_length": 72,
+        "summary_kws":  ["video", "scene", "description", "story", "footage"],
     },
 }
 
+# ── 外部系统文件名 → 来源标签 ─────────────────────────────────────
+# 文件名中包含以下字符串时，映射到对应的标签（方便报告显示）
+SOURCE_NAME_MAP = {
+    "GPT-4o":     "GPT-4o",
+    "LOLgorithm": "LOLgorithm",
+    "V2Xum-LLM":  "V2Xum-LLM",
+    "livechat":   "LiveChat",
+}
 
 # ════════════════════════════════════════════════════════════════
-#  模型懒加载
+#  模型懒加载（全局共享，只初始化一次）
 # ════════════════════════════════════════════════════════════════
 
-_sbert_model     = None
-_sentiment_model = None
+SBERT_MODEL_NAME     = "all-MiniLM-L6-v2"
+SENTIMENT_MODEL_NAME = "distilbert-base-uncased-finetuned-sst-2-english"
+
+_sbert     = None
+_sentiment = None
 
 
 def get_sbert() -> SentenceTransformer:
-    global _sbert_model
-    if _sbert_model is None:
+    global _sbert
+    if _sbert is None:
         print(f"  🔄 加载语义模型 {SBERT_MODEL_NAME} ...")
-        _sbert_model = SentenceTransformer(SBERT_MODEL_NAME)
+        _sbert = SentenceTransformer(SBERT_MODEL_NAME)
         print(f"  ✅ 语义模型已加载")
-    return _sbert_model
+    return _sbert
 
 
-def get_sentiment_pipeline():
-    global _sentiment_model
-    if _sentiment_model is None:
+def get_sentiment():
+    global _sentiment
+    if _sentiment is None:
         print(f"  🔄 加载情感模型 {SENTIMENT_MODEL_NAME} ...")
-        _sentiment_model = pipeline("sentiment-analysis", model=SENTIMENT_MODEL_NAME)
+        _sentiment = pipeline("sentiment-analysis", model=SENTIMENT_MODEL_NAME)
         print(f"  ✅ 情感模型已加载")
-    return _sentiment_model
+    return _sentiment
 
 
-def get_sentiment_label(text: str) -> str:
+def sentiment_label(text: str) -> str:
     try:
-        return get_sentiment_pipeline()(text[:512])[0]["label"]
+        return get_sentiment()(text[:512])[0]["label"]
     except Exception:
         return "POSITIVE"
 
@@ -141,619 +179,775 @@ def save_json(data, path: str):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def extract_comment(item: dict) -> str:
+    """兼容不同来源文件的评论字段名。"""
+    for key in ("comment", "comment_1", "generated_comment"):
+        val = item.get(key, "")
+        if val and str(val).strip():
+            return str(val).strip()
+    return ""
+
+
+def extract_video_id(item: dict) -> str:
+    """兼容 video_id / id 两种字段名。"""
+    return str(item.get("video_id", item.get("id", ""))).strip()
+
+
+def extract_video_desc(item: dict) -> str:
+    return item.get("video_description", "").strip()
+
+
+def map_source_name(filename: str) -> str:
+    """根据文件名推断标准来源标签。"""
+    base = os.path.splitext(os.path.basename(filename))[0]
+    for pattern, label in SOURCE_NAME_MAP.items():
+        if pattern.lower() in base.lower():
+            return label
+    return base
+
+
+def find_original_comment_files(platform: str) -> list:
+    """
+    返回指定平台原评论目录下所有 .json 文件的路径列表。
+    目录结构：
+      evaluation/original_comment_from_platform/
+        douyin/    ← 抖音原评论（本函数 platform="douyin" 时读取此目录）
+        youtube/   ← YouTube 原评论（platform="youtube" 时读取此目录）
+    目录不存在时返回空列表并给出警告。
+    """
+    target_dir = ORIGINAL_COMMENT_DIRS.get(platform, "")
+    if not target_dir or not os.path.isdir(target_dir):
+        print(f"  [警告] 原评论目录不存在：{target_dir or '（未配置）'}")
+        return []
+
+    files = [
+        os.path.join(target_dir, fn)
+        for fn in sorted(os.listdir(target_dir))
+        if fn.endswith(".json")
+    ]
+    if not files:
+        print(f"  [警告] 原评论目录为空，无 .json 文件：{target_dir}")
+    else:
+        print(f"  📂 原评论目录：{target_dir}（{len(files)} 个文件）")
+    return files
+
+
 # ════════════════════════════════════════════════════════════════
-#  数据预加载
+#  参考数据预加载
 # ════════════════════════════════════════════════════════════════
 
-def load_sample_embeddings(sample_file_paths: list) -> np.ndarray:
-    """加载样本评论并编码，供原创性打分使用。"""
+def load_sample_embeddings(ref_file_paths: list) -> np.ndarray:
+    """
+    从原平台评论文件中提取所有评论文本并编码。
+    兼容格式：
+      comment_1~5 字段（样本格式）
+      comment 字段（外部系统格式 / 原评论格式）
+      comments 列表
+    """
     model = get_sbert()
     texts = []
-    for fp in sample_file_paths:
+    for fp in ref_file_paths:
         if not os.path.exists(fp):
             print(f"  [警告] 样本文件不存在，跳过：{fp}")
             continue
         data = load_json(fp)
         for item in data:
+            # comment_1 ~ comment_5
             for i in range(1, 6):
                 c = item.get(f"comment_{i}", "").strip()
                 if c:
                     texts.append(c)
+            # comments 列表
             if isinstance(item.get("comments"), list):
                 for c_obj in item["comments"]:
-                    c = c_obj.get("content", c_obj.get("comment","")).strip()
+                    c = c_obj.get("content", c_obj.get("comment", "")).strip()
                     if c:
                         texts.append(c)
-            c = item.get("comment","").strip()
+            # 直接 comment 字段
+            c = item.get("comment", "").strip()
             if c and c not in texts:
                 texts.append(c)
 
     if not texts:
-        print("  [警告] 未找到任何样本评论，原创性得分将为 0")
+        print("  [警告] 未找到样本评论，原创性得分将为 0")
         return np.array([])
 
-    print(f"  🔄 编码 {len(texts)} 条样本评论 ...")
+    print(f"  🔄 编码 {len(texts)} 条原平台评论 ...")
     vecs = model.encode(texts, show_progress_bar=False, batch_size=64)
-    print(f"  ✅ 样本 embedding 完成（{len(texts)} 条）")
+    print(f"  ✅ 完成（{len(texts)} 条）")
     return vecs
 
 
-def load_reference_specificities(reference_file: str) -> dict:
+def load_reference_specificities(ref_file_paths: list) -> dict:
     """
-    读取参考数据集，计算每个 video_id 的
-    「人类真实评论 vs 视频描述」平均语义相似度，作为具体性基线。
+    计算每个 video_id 的「人类真实评论 vs 视频描述」平均语义相似度。
+    作为具体性评分的参考基线。
+    同一 video_id 出现在多个文件时取均值。
     """
     model = get_sbert()
-    if not os.path.exists(reference_file):
-        print(f"  [警告] 参考文件不存在：{reference_file}，具体性得分将为 0")
-        return {}
+    raw: dict[str, list] = {}   # video_id -> [sim, sim, ...]
 
-    data    = load_json(reference_file)
-    ref_map = {}
-    print(f"  🔄 计算参考具体性基线（{len(data)} 条）...")
-
-    for item in tqdm(data, desc="  参考基线", leave=False):
-        vid  = str(item.get("id", item.get("video_id",""))).strip()
-        desc = item.get("video_description","").strip()
-        if not vid or not desc:
+    for fp in ref_file_paths:
+        if not os.path.exists(fp):
             continue
-        desc_vec = model.encode([desc])
-        sims = []
-        for i in range(1, 6):
-            c = item.get(f"comment_{i}","").strip()
-            if c:
-                sims.append(cosine_similarity(model.encode([c]), desc_vec).item())
-        if isinstance(item.get("comments"), list):
-            for c_obj in item["comments"]:
-                c = c_obj.get("content", c_obj.get("comment","")).strip()
+        data = load_json(fp)
+        print(f"  🔄 计算具体性基线 ← {os.path.basename(fp)}（{len(data)} 条）")
+
+        for item in tqdm(data, desc="  具体性基线", leave=False):
+            vid  = extract_video_id(item)
+            desc = extract_video_desc(item)
+            if not vid or not desc:
+                continue
+            desc_vec = model.encode([desc])
+
+            sims = []
+            for i in range(1, 6):
+                c = item.get(f"comment_{i}", "").strip()
                 if c:
                     sims.append(cosine_similarity(model.encode([c]), desc_vec).item())
-        if sims:
-            ref_map[vid] = float(np.mean(sims))
+            if isinstance(item.get("comments"), list):
+                for c_obj in item["comments"]:
+                    c = c_obj.get("content", c_obj.get("comment", "")).strip()
+                    if c:
+                        sims.append(cosine_similarity(model.encode([c]), desc_vec).item())
+            # 直接 comment 字段
+            c = item.get("comment", "").strip()
+            if c:
+                sims.append(cosine_similarity(model.encode([c]), desc_vec).item())
 
-    print(f"  ✅ 参考基线完成（{len(ref_map)} 个视频）")
+            if sims:
+                raw.setdefault(vid, []).extend(sims)
+
+    ref_map = {vid: float(np.mean(sims)) for vid, sims in raw.items()}
+    print(f"  ✅ 具体性基线完成（{len(ref_map)} 个视频）")
     return ref_map
 
 
 # ════════════════════════════════════════════════════════════════
-#  三个评分维度（与原版 evaluate_for_douyin/youtube.py 对齐）
+#  三个评分维度
 # ════════════════════════════════════════════════════════════════
 
 def score_originality(comment: str, comment_vec: np.ndarray,
                       sample_vecs: np.ndarray, all_comments: list,
                       summary_kws: list) -> float:
-    """原创性（0~10）。"""
-    sim = float(cosine_similarity(comment_vec, sample_vecs).max()) \
-          if sample_vecs.size > 0 else 0.0
-
-    is_summary_like = any(kw in comment for kw in summary_kws)
-    is_repetitive   = all_comments.count(comment) > 1
+    """
+    原创性（0~10）：
+      基础分 = 10 - max_sim_to_samples × 10
+      -3 若含总结性关键词
+      -3 若在批次中重复
+    """
+    if sample_vecs.size > 0:
+        sim = float(cosine_similarity(comment_vec, sample_vecs).max())
+    else:
+        sim = 0.0
 
     score = 10.0 - sim * 10.0
-    if is_summary_like: score -= 3.0
-    if is_repetitive:   score -= 3.0
+    if any(kw in comment for kw in summary_kws):
+        score -= 3.0
+    if all_comments.count(comment) > 1:
+        score -= 3.0
     return round(max(0.0, score), 2)
 
 
 def score_specificity(comment_vec: np.ndarray, video_description: str,
-                      video_id: str, reference_specificities: dict) -> float:
-    """具体性（0~10）。"""
+                      video_id: str, ref_spec: dict) -> float:
+    """
+    具体性（0~10）：
+      specificity = 10 - |current_sim - ref_sim| × 10
+      若 video_id 不在参考基线中，返回 0。
+    """
     model = get_sbert()
-    if not video_description.strip() or video_id not in reference_specificities:
+    if not video_description.strip() or video_id not in ref_spec:
         return 0.0
     desc_vec    = model.encode([video_description])
     current_sim = cosine_similarity(comment_vec, desc_vec).item()
-    ref_sim     = reference_specificities[video_id]
+    ref_sim     = ref_spec[video_id]
     return round(max(0.0, 10.0 - abs(current_sim - ref_sim) * 10.0), 2)
 
 
 def score_style(comment: str, comment_vec: np.ndarray,
                 video_description: str, all_comments: list,
                 ideal_length: int) -> float:
-    """风格符合性（0~10）。"""
+    """
+    风格符合性（0~10）：
+      情感得分（10 若一致，5 若不同）- 长度惩罚（0~5）
+      语义重复（max_sim > 0.75）或完全重复时，情感分压至 1
+    """
     model = get_sbert()
 
-    length_penalty   = abs(len(comment) - ideal_length) / max(ideal_length, 1)
-    length_deduction = min(length_penalty * 5.0, 5.0)
+    # 长度惩罚
+    length_deduction = min(abs(len(comment) - ideal_length) / max(ideal_length, 1) * 5.0, 5.0)
 
+    # 情感一致性
     try:
-        c_sent = get_sentiment_label(comment)
-        d_sent = get_sentiment_label(video_description)
-        sentiment_score = 10.0 if c_sent == d_sent else 5.0
+        sent_score = 10.0 if sentiment_label(comment) == sentiment_label(video_description) else 5.0
     except Exception:
-        sentiment_score = 5.0
+        sent_score = 5.0
 
-    is_repetitive = all_comments.count(comment) > 1
+    # 重复检测
+    is_repeat = all_comments.count(comment) > 1
     if len(all_comments) > 1:
-        others = [c for c in all_comments if c != comment] or all_comments
-        max_sim = float(cosine_similarity(comment_vec,
-                        model.encode(others, show_progress_bar=False))[0].max())
+        others  = [c for c in all_comments if c != comment] or all_comments
+        max_sim = float(cosine_similarity(
+            comment_vec, model.encode(others, show_progress_bar=False))[0].max())
         is_sem_rep = max_sim > 0.75
     else:
         is_sem_rep = False
 
-    if is_repetitive or is_sem_rep:
-        sentiment_score = min(sentiment_score, 1.0)
+    if is_repeat or is_sem_rep:
+        sent_score = min(sent_score, 1.0)
 
-    return round(max(0.0, min(10.0, sentiment_score - length_deduction)), 2)
+    return round(max(0.0, min(10.0, sent_score - length_deduction)), 2)
 
 
-def score_one_comment(comment: str, video_id: str, video_description: str,
-                      all_comments: list, sample_vecs: np.ndarray,
-                      reference_specificities: dict, cfg: dict) -> dict:
+def score_comment(comment: str, video_id: str, video_description: str,
+                  all_comments: list, sample_vecs: np.ndarray,
+                  ref_spec: dict, params: dict) -> dict:
     """对单条评论打全部三维度的分。总分 = 三维度均值（满分 10）。"""
     model = get_sbert()
 
-    if not comment or not comment.strip():
+    if not comment:
         return {"原创性": 0.0, "具体性": 0.0, "风格符合性": 0.0, "总分": 0.0}
 
     comment_vec = model.encode([comment])
     orig  = score_originality(comment, comment_vec, sample_vecs,
-                              all_comments, cfg["summary_kws"])
-    spec  = score_specificity(comment_vec, video_description,
-                              video_id, reference_specificities)
+                              all_comments, params["summary_kws"])
+    spec  = score_specificity(comment_vec, video_description, video_id, ref_spec)
     style = score_style(comment, comment_vec, video_description,
-                        all_comments, cfg["ideal_length"])
+                        all_comments, params["ideal_length"])
 
-    return {"原创性": orig, "具体性": spec, "风格符合性": style,
-            "总分": round((orig + spec + style) / 3.0, 2)}
+    return {
+        "原创性":    orig,
+        "具体性":    spec,
+        "风格符合性": style,
+        "总分":      round((orig + spec + style) / 3.0, 2),
+    }
 
 
 # ════════════════════════════════════════════════════════════════
-#  通用：对一批记录中所有 GENERATED_COMMENT_FIELDS 打分
+#  各来源批量打分
 # ════════════════════════════════════════════════════════════════
 
-def evaluate_records(
-    records:                 list,
-    sample_vecs:             np.ndarray,
-    reference_specificities: dict,
-    cfg:                     dict,
-    source_type:             str,   # "ablation" | "baseline" | "extra"
-    desc: str = "",
-) -> list:
+def eval_external_system(data: list, source_name: str, platform: str,
+                         sample_vecs: np.ndarray, ref_spec: dict,
+                         params: dict) -> list:
     """
-    遍历记录列表，对每条记录的 GENERATED_COMMENT_FIELDS 各打一次分。
-    source_type 用于在报告中区分三组数据。
+    评分外部系统评论（GPT-4o / LOLgorithm / V2Xum-LLM / livechat）。
 
-    记录结构（ablation/baseline 相同）：
-      id / video_description / video_introduction / label /
-      ablation_exp_type / ablation_exp_name / ablation_variable / ablation_exp_pipeline /
-      qwen3.5_generated_comment / glm_generated_comment / ...
+    兼容字段：
+      video_id / id        → 视频 ID
+      comment              → 评论文本
+      video_description    → 视频描述（用于具体性计算）
+      label / url          → 可选元数据
     """
-    # 收集本批次所有生成评论（用于重复检测）
-    all_batch_comments = [
+    all_comments = [extract_comment(x) for x in data if extract_comment(x)]
+    rows = []
+
+    for item in tqdm(data, desc=f"  {source_name}", unit="条"):
+        vid    = extract_video_id(item)
+        comment= extract_comment(item)
+        desc   = extract_video_desc(item)
+
+        scores = score_comment(comment, vid, desc, all_comments,
+                               sample_vecs, ref_spec, params)
+        rows.append({
+            # 来源标注
+            "platform":          platform,
+            "source_type":       "external",
+            "source_label":      source_name,
+            "exp_type":          "",
+            "exp_name":          "",
+            "gen_model":         source_name,
+            # 视频元信息
+            "video_id":          vid,
+            "label":             item.get("label", ""),
+            "video_description": desc,
+            "video_introduction":item.get("video_introduction", ""),
+            # 评论
+            "comment":           comment,
+            "comment_length":    len(comment),
+            # 得分
+            **scores,
+        })
+    return rows
+
+
+def eval_ablation_or_baseline(records: list, source_type: str,
+                               platform: str, sample_vecs: np.ndarray,
+                               ref_spec: dict, params: dict) -> list:
+    """
+    评分消融实验（EXP-1/2/3/4）或 BASELINE 记录。
+    每条记录含四个模型字段，各打一次分。
+    """
+    # 收集全批次所有生成评论（重复检测用）
+    all_batch = [
         rec.get(f, "").strip()
         for rec in records
         for f in GENERATED_COMMENT_FIELDS
         if rec.get(f, "").strip()
     ]
 
-    detail_rows = []
-    label = desc or source_type
+    rows = []
+    desc_label = "BASELINE" if source_type == "baseline" else "消融实验"
 
-    for rec in tqdm(records, desc=f"  {label}", unit="视频"):
-        vid_id      = str(rec.get("id","")).strip()
-        exp_type    = rec.get("ablation_exp_type", "")
-        exp_name    = rec.get("ablation_exp_name", "")
-        variable    = rec.get("ablation_variable", "")
-        pipeline_   = rec.get("ablation_exp_pipeline", "")
-        video_desc  = rec.get("video_description", "")
-        video_intro = rec.get("video_introduction", "")
-        label_val   = rec.get("label", "")
-        plat        = rec.get("ablation_platform", cfg.get("platform",""))
+    for rec in tqdm(records, desc=f"  {desc_label}({platform})", unit="视频"):
+        vid      = str(rec.get("id", "")).strip()
+        exp_type = rec.get("ablation_exp_type", "")
+        exp_name = rec.get("ablation_exp_name", "")
+        desc     = rec.get("video_description", "")
+        intro    = rec.get("video_introduction", "")
+        label    = rec.get("label", "")
 
         for field in GENERATED_COMMENT_FIELDS:
             gen_model = field.replace("_generated_comment", "")
             comment   = rec.get(field, "").strip()
 
-            scores = score_one_comment(
-                comment                 = comment,
-                video_id                = vid_id,
-                video_description       = video_desc,
-                all_comments            = all_batch_comments,
-                sample_vecs             = sample_vecs,
-                reference_specificities = reference_specificities,
-                cfg                     = cfg,
-            )
-
-            detail_rows.append({
+            scores = score_comment(comment, vid, desc, all_batch,
+                                   sample_vecs, ref_spec, params)
+            rows.append({
+                "platform":          platform,
                 "source_type":       source_type,
-                "source_label":      f"{exp_type} / {gen_model}" if exp_type else gen_model,
-                "id":                vid_id,
-                "platform":          plat,
-                "label":             label_val,
-                "video_description": video_desc,
-                "video_introduction":video_intro,
+                "source_label":      f"{exp_type}/{gen_model}" if exp_type else f"BASELINE/{gen_model}",
                 "exp_type":          exp_type,
                 "exp_name":          exp_name,
-                "ablation_variable": variable,
-                "ablation_pipeline": pipeline_,
                 "gen_model":         gen_model,
+                "video_id":          vid,
+                "label":             label,
+                "video_description": desc,
+                "video_introduction":intro,
                 "comment":           comment,
                 "comment_length":    len(comment),
                 **scores,
             })
-
-    return detail_rows
-
-
-# ════════════════════════════════════════════════════════════════
-#  额外评论通道
-# ════════════════════════════════════════════════════════════════
-
-def evaluate_extra_comments(
-    extra_file_paths:        list,
-    sample_vecs:             np.ndarray,
-    reference_specificities: dict,
-    cfg:                     dict,
-) -> list:
-    """
-    额外评论格式（每文件是一个 list）：
-      [{"video_id":"1","url":"1.mp4","label":"","comment":"...","video_description":"..."}, ...]
-    文件名（去掉后缀）作为 source_label。
-    """
-    all_rows = []
-    for fp in extra_file_paths:
-        if not os.path.exists(fp):
-            print(f"  [警告] 额外评论文件不存在：{fp}")
-            continue
-        data        = load_json(fp)
-        source_name = os.path.basename(fp).replace(".json","")
-        all_comments = [item.get("comment","").strip() for item in data
-                        if item.get("comment","").strip()]
-
-        print(f"\n  额外评论：{source_name}（{len(data)} 条）")
-
-        for item in tqdm(data, desc=f"  {source_name}"):
-            vid_id     = str(item.get("video_id", item.get("id",""))).strip()
-            comment    = item.get("comment","").strip()
-            video_desc = item.get("video_description","").strip()
-
-            scores = score_one_comment(
-                comment                 = comment,
-                video_id                = vid_id,
-                video_description       = video_desc,
-                all_comments            = all_comments,
-                sample_vecs             = sample_vecs,
-                reference_specificities = reference_specificities,
-                cfg                     = cfg,
-            )
-
-            all_rows.append({
-                "source_type":       "extra",
-                "source_label":      source_name,
-                "id":                vid_id,
-                "platform":          cfg.get("platform",""),
-                "label":             item.get("label",""),
-                "url":               item.get("url",""),
-                "video_description": video_desc,
-                "video_introduction":"",
-                "exp_type":          "",
-                "exp_name":          "",
-                "ablation_variable": "",
-                "ablation_pipeline": "",
-                "gen_model":         source_name,
-                "comment":           comment,
-                "comment_length":    len(comment),
-                **scores,
-            })
-    return all_rows
+    return rows
 
 
 # ════════════════════════════════════════════════════════════════
-#  保存结果 & 控制台报告
+#  输出：保存 & 报告
 # ════════════════════════════════════════════════════════════════
 
 SCORE_COLS = ["原创性", "具体性", "风格符合性", "总分"]
 
 
-def save_and_print_report(all_rows: list, eval_dir: str, platform: str):
+def save_results(all_rows: list, eval_dir: str):
+    """
+    保存全部结果：
+      all_eval_detail.json           ← 所有平台所有来源明细
+      {platform}_eval_summary.csv   ← 按来源均值汇总（含 std）
+      {platform}_eval_combined.csv  ← 各来源一行对比表
+    """
     os.makedirs(eval_dir, exist_ok=True)
 
-    # 详细结果 JSON
-    detail_path = os.path.join(eval_dir, "ablation_eval_detail.json")
-    save_json(all_rows, detail_path)
-    print(f"\n  ✅ 详细结果 → {detail_path}")
+    # ── 全量明细 JSON ──────────────────────────────────────────
+    all_json_path = os.path.join(eval_dir, "all_eval_detail.json")
+    save_json(all_rows, all_json_path)
+    print(f"\n  ✅ 全量明细 → {all_json_path}  （{len(all_rows)} 条记录）")
 
     df = pd.DataFrame(all_rows)
 
-    # ── 消融实验汇总（按实验类型 × 生成模型）──────────────────
-    abl_df = df[df["source_type"] == "ablation"]
-    if not abl_df.empty:
-        abl_sum = (
-            abl_df.groupby(["exp_type","exp_name","gen_model"])[SCORE_COLS]
-            .agg(["mean","std"]).round(3)
-        )
-        abl_sum.columns = ["_".join(c) for c in abl_sum.columns]
-        abl_sum.reset_index().to_csv(
-            os.path.join(eval_dir, "ablation_eval_summary.csv"),
-            index=False, encoding="utf-8-sig"
-        )
-        print(f"  ✅ 消融实验汇总 → {os.path.join(eval_dir, 'ablation_eval_summary.csv')}")
+    for platform in ["douyin", "youtube"]:
+        plat_df = df[df["platform"] == platform]
+        if plat_df.empty:
+            continue
 
-    # ── BASELINE 汇总（按生成模型）────────────────────────────
-    base_df = df[df["source_type"] == "baseline"]
-    if not base_df.empty:
-        base_sum = (
-            base_df.groupby("gen_model")[SCORE_COLS]
-            .agg(["mean","std"]).round(3)
-        )
-        base_sum.columns = ["_".join(c) for c in base_sum.columns]
-        base_sum.reset_index().to_csv(
-            os.path.join(eval_dir, "baseline_eval_summary.csv"),
-            index=False, encoding="utf-8-sig"
-        )
-        print(f"  ✅ BASELINE 汇总 → {os.path.join(eval_dir, 'baseline_eval_summary.csv')}")
+        prefix = os.path.join(eval_dir, platform)
 
-    # ── 额外评论汇总 ──────────────────────────────────────────
-    ext_df = df[df["source_type"] == "extra"]
-    if not ext_df.empty:
-        ext_sum = (
-            ext_df.groupby("source_label")[SCORE_COLS]
-            .agg(["mean","std"]).round(3)
-        )
-        ext_sum.columns = ["_".join(c) for c in ext_sum.columns]
-        ext_sum.reset_index().to_csv(
-            os.path.join(eval_dir, "ablation_eval_extra.csv"),
-            index=False, encoding="utf-8-sig"
-        )
-        print(f"  ✅ 额外评论汇总 → {os.path.join(eval_dir, 'ablation_eval_extra.csv')}")
+        # ── 汇总 CSV（来源 × 维度，含 mean & std）──────────────
+        grp = plat_df.groupby(["source_type", "source_label", "gen_model"])
+        summary_rows = []
+        for (stype, slabel, gmodel), g in grp:
+            row = {
+                "来源类型":  stype,
+                "来源标签":  slabel,
+                "生成模型":  gmodel,
+            }
+            for col in SCORE_COLS:
+                row[f"{col}_mean"] = round(g[col].mean(), 3)
+                row[f"{col}_std"]  = round(g[col].std(),  3)
+            row["样本数"] = len(g)
+            summary_rows.append(row)
 
-    # ── 三组统一对比表 ─────────────────────────────────────────
-    combined_rows = []
-    # 消融实验：实验类型 × 生成模型
-    if not abl_df.empty:
-        for (et, en, gm), grp in abl_df.groupby(["exp_type","exp_name","gen_model"]):
-            row = {"实验组": f"{et}（{en}）", "生成模型": gm, "来源类型": "消融实验"}
-            row.update(grp[SCORE_COLS].mean().round(3).to_dict())
-            combined_rows.append(row)
-    # BASELINE：生成模型
-    if not base_df.empty:
-        for gm, grp in base_df.groupby("gen_model"):
-            row = {"实验组": "BASELINE（完整RAG）", "生成模型": gm, "来源类型": "BASELINE"}
-            row.update(grp[SCORE_COLS].mean().round(3).to_dict())
-            combined_rows.append(row)
-    # 额外评论：来源文件
-    if not ext_df.empty:
-        for src, grp in ext_df.groupby("source_label"):
-            row = {"实验组": f"额外评论（{src}）", "生成模型": src, "来源类型": "额外评论"}
-            row.update(grp[SCORE_COLS].mean().round(3).to_dict())
+        pd.DataFrame(summary_rows).to_csv(
+            f"{prefix}_eval_summary.csv", index=False, encoding="utf-8-sig"
+        )
+        print(f"  ✅ {platform.upper()} 汇总 → {prefix}_eval_summary.csv")
+
+        # ── 对比表 CSV（每个来源一行，方便论文直接引用）──────────
+        # 分组粒度：source_label（同一来源多模型则先均值）
+        combined_rows = []
+
+        # 外部系统（每个文件一个 source_label）
+        ext = plat_df[plat_df["source_type"] == "external"]
+        if not ext.empty:
+            for slabel, g in ext.groupby("source_label"):
+                row = {"来源类型": "外部系统", "来源": slabel}
+                row.update(g[SCORE_COLS].mean().round(3).to_dict())
+                combined_rows.append(row)
+
+        # BASELINE（按生成模型拆分）
+        base = plat_df[plat_df["source_type"] == "baseline"]
+        if not base.empty:
+            for gm, g in base.groupby("gen_model"):
+                row = {"来源类型": "BASELINE", "来源": f"BASELINE/{gm}"}
+                row.update(g[SCORE_COLS].mean().round(3).to_dict())
+                combined_rows.append(row)
+            # 全 BASELINE 均值行
+            row = {"来源类型": "BASELINE", "来源": "BASELINE（四模型均值）"}
+            row.update(base[SCORE_COLS].mean().round(3).to_dict())
             combined_rows.append(row)
 
-    if combined_rows:
+        # 消融实验（按实验类型 × 生成模型）
+        abl = plat_df[plat_df["source_type"] == "ablation"]
+        if not abl.empty:
+            for (et, gm), g in abl.groupby(["exp_type", "gen_model"]):
+                row = {"来源类型": "消融实验", "来源": f"{et}/{gm}"}
+                row.update(g[SCORE_COLS].mean().round(3).to_dict())
+                combined_rows.append(row)
+            # 各实验类型均值行
+            for et, g in abl.groupby("exp_type"):
+                row = {"来源类型": "消融实验", "来源": f"{et}（四模型均值）"}
+                row.update(g[SCORE_COLS].mean().round(3).to_dict())
+                combined_rows.append(row)
+
         pd.DataFrame(combined_rows).to_csv(
-            os.path.join(eval_dir, "ablation_eval_combined.csv"),
-            index=False, encoding="utf-8-sig"
+            f"{prefix}_eval_combined.csv", index=False, encoding="utf-8-sig"
         )
-        print(f"  ✅ 三组对比表 → {os.path.join(eval_dir, 'ablation_eval_combined.csv')}")
+        print(f"  ✅ {platform.upper()} 对比表 → {prefix}_eval_combined.csv")
 
-    # ────────────────────────────────────────────────────────
-    #  控制台报告
-    # ────────────────────────────────────────────────────────
-    W = 20
 
-    def _header(first_col, first_w):
-        return f"  {first_col:<{first_w}}" + "".join(f"{c:<{W}}" for c in SCORE_COLS)
+def print_report(all_rows: list):
+    """控制台输出双平台评估报告。"""
+    df = pd.DataFrame(all_rows)
+    W  = 22
 
-    def _data_row(label, row, first_w):
-        cells = "".join(f"{row[c]:<{W}.2f}" for c in SCORE_COLS)
-        bar   = "█" * int(row["总分"] * 2)
-        return f"  {str(label):<{first_w}}{cells}  {bar}"
+    def _hdr(first, fw):
+        return f"  {first:<{fw}}" + "".join(f"{c:<{W}}" for c in SCORE_COLS)
 
-    print(f"\n\n{'★'*66}")
-    print(f"  ★ 评估报告 — {platform.upper()}  （各维度满分 10，总分 = 三维度均值）")
-    print(f"{'★'*66}")
+    def _row(label, g, fw):
+        avgs = g[SCORE_COLS].mean()
+        bar  = "█" * int(avgs["总分"] * 2)
+        return f"  {str(label):<{fw}}" + "".join(f"{avgs[c]:<{W}.2f}" for c in SCORE_COLS) + f"  {bar}"
 
-    # ── ① BASELINE：按生成模型 ────────────────────────────────
-    if not base_df.empty:
-        print(f"\n  ① BASELINE — 完整 RAG Pipeline / 按生成模型")
-        print(f"  {'─'*60}")
-        gen_avg = base_df.groupby("gen_model")[SCORE_COLS].mean().round(2)
-        print(_header("生成模型", 18))
-        print("  " + "─" * (18 + W * len(SCORE_COLS)))
-        for g, row in gen_avg.iterrows():
-            print(_data_row(g, row, 18))
+    for platform in ["douyin", "youtube"]:
+        plat_df = df[df["platform"] == platform]
+        if plat_df.empty:
+            continue
 
-    # ── ② 消融实验：按实验类型（所有模型均值）─────────────────
-    if not abl_df.empty:
-        print(f"\n  ② 消融实验 — 按实验类型（所有生成模型均值）")
-        print(f"  {'─'*60}")
-        exp_avg = abl_df.groupby(["exp_type","exp_name"])[SCORE_COLS].mean().round(2)
-        print(f"  {'实验类型':<10}{'实验名称':<26}" + "".join(f"{c:<{W}}" for c in SCORE_COLS))
-        print("  " + "─" * (36 + W * len(SCORE_COLS)))
-        for (et, en), row in exp_avg.iterrows():
-            cells = "".join(f"{row[c]:<{W}.2f}" for c in SCORE_COLS)
-            bar   = "█" * int(row["总分"] * 2)
-            print(f"  {et:<10}{en:<26}{cells}  {bar}")
+        print(f"\n\n{'★'*70}")
+        print(f"  ★ 评估报告 — {platform.upper()}  （各维度满分 10，总分 = 三维度均值）")
+        print(f"{'★'*70}")
 
-        print(f"\n  ② 消融实验 — 按生成模型（所有实验类型均值）")
-        print(f"  {'─'*60}")
-        gen_avg_abl = abl_df.groupby("gen_model")[SCORE_COLS].mean().round(2)
-        print(_header("生成模型", 18))
-        print("  " + "─" * (18 + W * len(SCORE_COLS)))
-        for g, row in gen_avg_abl.iterrows():
-            print(_data_row(g, row, 18))
+        # ① 外部系统
+        ext = plat_df[plat_df["source_type"] == "external"]
+        if not ext.empty:
+            print(f"\n  ① 外部对比系统（GPT-4o / LOLgorithm / V2Xum-LLM / LiveChat）")
+            print(f"  {'─'*65}")
+            print(_hdr("来源系统", 20))
+            print("  " + "─" * (20 + W * len(SCORE_COLS)))
+            for slabel, g in ext.groupby("source_label"):
+                print(_row(slabel, g, 20))
 
-    # ── ③ BASELINE vs 消融实验 整体对比 ───────────────────────
-    if not base_df.empty and not abl_df.empty:
-        print(f"\n  ③ BASELINE vs 消融实验 — 整体均值对比")
-        print(f"  {'─'*60}")
-        print(_header("来源", 30))
-        print("  " + "─" * (30 + W * len(SCORE_COLS)))
-        base_avg_row = base_df[SCORE_COLS].mean().round(2)
-        abl_avg_row  = abl_df[SCORE_COLS].mean().round(2)
-        print(_data_row("BASELINE（完整RAG，四模型均值）", base_avg_row, 30))
-        print(_data_row("消融实验（EXP-1~4，四模型均值）", abl_avg_row, 30))
+        # ② BASELINE
+        base = plat_df[plat_df["source_type"] == "baseline"]
+        if not base.empty:
+            print(f"\n  ② BASELINE — 完整 RAG / 按生成模型")
+            print(f"  {'─'*65}")
+            print(_hdr("生成模型", 22))
+            print("  " + "─" * (22 + W * len(SCORE_COLS)))
+            for gm, g in base.groupby("gen_model"):
+                print(_row(gm, g, 22))
+            # 均值行
+            print("  " + "─" * (22 + W * len(SCORE_COLS)))
+            print(_row("【BASELINE 四模型均值】", base, 22))
 
-    # ── ④ 额外评论 ────────────────────────────────────────────
-    if not ext_df.empty:
-        print(f"\n  ④ 额外评论 — 按来源文件")
-        print(f"  {'─'*60}")
-        ext_avg = ext_df.groupby("source_label")[SCORE_COLS].mean().round(2)
-        print(_header("来源", 28))
-        print("  " + "─" * (28 + W * len(SCORE_COLS)))
-        for src, row in ext_avg.iterrows():
-            print(_data_row(src, row, 28))
+        # ③ 消融实验：按实验类型
+        abl = plat_df[plat_df["source_type"] == "ablation"]
+        if not abl.empty:
+            print(f"\n  ③ 消融实验 — 按实验类型（四模型均值）")
+            print(f"  {'─'*65}")
+            print(f"  {'实验类型':<10}{'实验名称':<28}" + "".join(f"{c:<{W}}" for c in SCORE_COLS))
+            print("  " + "─" * (38 + W * len(SCORE_COLS)))
+            for (et, en), g in abl.groupby(["exp_type", "exp_name"]):
+                avgs = g[SCORE_COLS].mean()
+                bar  = "█" * int(avgs["总分"] * 2)
+                print(f"  {et:<10}{en:<28}" +
+                      "".join(f"{avgs[c]:<{W}.2f}" for c in SCORE_COLS) + f"  {bar}")
 
-    # ── ⑤ 消融实验最佳组合 ────────────────────────────────────
-    if not abl_df.empty:
-        best = (
-            abl_df.groupby(["exp_type","gen_model"])["总分"]
-            .mean().reset_index()
-            .sort_values("总分", ascending=False)
-        )
-        print(f"\n  ⑤ 消融实验 — 最佳实验 × 生成模型 Top 8")
-        print(f"  {'─'*60}")
-        print(f"  {'实验类型':<12}{'生成模型':<22}{'总分均值'}")
-        print("  " + "─" * 44)
-        for _, r in best.head(8).iterrows():
-            bar = "█" * int(r["总分"] * 2)
-            print(f"  {r['exp_type']:<12}{r['gen_model']:<22}{r['总分']:.2f}  {bar}")
+            print(f"\n  ③ 消融实验 — 按生成模型（四实验类型均值）")
+            print(f"  {'─'*65}")
+            print(_hdr("生成模型", 22))
+            print("  " + "─" * (22 + W * len(SCORE_COLS)))
+            for gm, g in abl.groupby("gen_model"):
+                print(_row(gm, g, 22))
 
-    print(f"\n  输出目录：{eval_dir}")
+        # ④ 整体对比（外部 vs BASELINE vs 消融实验）
+        if not ext.empty or not base.empty or not abl.empty:
+            print(f"\n  ④ 整体均值对比（各来源类型）")
+            print(f"  {'─'*65}")
+            print(_hdr("来源类型", 30))
+            print("  " + "─" * (30 + W * len(SCORE_COLS)))
+            if not ext.empty:
+                print(_row("外部对比系统（四系统均值）", ext, 30))
+            if not base.empty:
+                print(_row("BASELINE（完整RAG，四模型均值）", base, 30))
+            if not abl.empty:
+                print(_row("消融实验（EXP-1~4，四模型均值）", abl, 30))
+
+        # ⑤ 消融实验最佳组合 Top8
+        if not abl.empty:
+            best = (
+                abl.groupby(["exp_type", "gen_model"])["总分"]
+                .mean().reset_index()
+                .sort_values("总分", ascending=False)
+            )
+            print(f"\n  ⑤ 消融实验 — 最佳实验 × 生成模型 Top 8")
+            print(f"  {'─'*65}")
+            print(f"  {'实验类型':<12}{'生成模型':<24}{'总分均值'}")
+            print("  " + "─" * 50)
+            for _, r in best.head(8).iterrows():
+                bar = "█" * int(r["总分"] * 2)
+                print(f"  {r['exp_type']:<12}{r['gen_model']:<24}{r['总分']:.2f}  {bar}")
 
 
 # ════════════════════════════════════════════════════════════════
-#  平台交互选择
+#  ★ 单平台评估流程
+# ════════════════════════════════════════════════════════════════
+
+def evaluate_platform(
+    platform:      str,
+    run_external:  bool,
+    run_baseline:  bool,
+    run_ablation:  bool,
+) -> list:
+    """
+    对单个平台执行完整评估流程，返回该平台的所有得分行。
+    """
+    params = PLATFORM_PARAMS[platform]
+    print(f"\n{'═'*70}")
+    print(f"  开始评估平台：{platform.upper()}")
+    print(f"{'═'*70}")
+
+    # ── 加载参考数据 ──────────────────────────────────────────
+    ref_files = find_original_comment_files(platform)
+    if not ref_files:
+        print(f"  [警告] {platform} 原评论目录为空或不存在：{ORIGINAL_COMMENT_DIRS.get(platform, '')}")
+        print(f"  将使用空参考（具体性得分为 0，原创性基线为空）")
+
+    sample_vecs = load_sample_embeddings(ref_files)
+    ref_spec    = load_reference_specificities(ref_files)
+
+    all_rows = []
+
+    # ── ① 外部系统评论 ────────────────────────────────────────
+    if run_external:
+        ext_dir = EXTERNAL_DIRS[platform]
+        if os.path.isdir(ext_dir):
+            json_files = sorted(
+                [f for f in os.listdir(ext_dir) if f.endswith(".json")]
+            )
+            if json_files:
+                print(f"\n  ── 外部对比系统（{len(json_files)} 个文件）")
+                for fn in json_files:
+                    fp          = os.path.join(ext_dir, fn)
+                    source_name = map_source_name(fn)
+                    data        = load_json(fp)
+                    print(f"  📄 {fn} → [{source_name}]（{len(data)} 条）")
+                    rows = eval_external_system(
+                        data, source_name, platform,
+                        sample_vecs, ref_spec, params
+                    )
+                    all_rows.extend(rows)
+                    print(f"     ✅ 评分完成（{len(rows)} 条）")
+            else:
+                print(f"  [警告] 外部系统目录为空：{ext_dir}")
+        else:
+            print(f"  [警告] 外部系统目录不存在：{ext_dir}")
+
+    # ── ② BASELINE 多模型对比 ─────────────────────────────────
+    if run_baseline:
+        fp = BASELINE_FILES[platform]
+        if os.path.exists(fp):
+            records = load_json(fp)
+            print(f"\n  ── BASELINE 多模型对比（{len(records)} 条视频 × {len(GENERATED_COMMENT_FIELDS)} 模型）")
+            rows = eval_ablation_or_baseline(
+                records, "baseline", platform, sample_vecs, ref_spec, params
+            )
+            all_rows.extend(rows)
+            print(f"     ✅ 评分完成（{len(rows)} 条）")
+        else:
+            print(f"  [警告] BASELINE 文件不存在，跳过：{fp}")
+
+    # ── ③ 消融实验（EXP-1/2/3/4）────────────────────────────
+    if run_ablation:
+        fp = ABLATION_FILES[platform]
+        if os.path.exists(fp):
+            records = load_json(fp)
+            print(f"\n  ── 消融实验（{len(records)} 条视频 × {len(GENERATED_COMMENT_FIELDS)} 模型）")
+            rows = eval_ablation_or_baseline(
+                records, "ablation", platform, sample_vecs, ref_spec, params
+            )
+            all_rows.extend(rows)
+            print(f"     ✅ 评分完成（{len(rows)} 条）")
+        else:
+            print(f"  [警告] 消融实验文件不存在，跳过：{fp}")
+
+    print(f"\n  {platform.upper()} 全部评分完成，共 {len(all_rows)} 条记录")
+    return all_rows
+
+
+# ════════════════════════════════════════════════════════════════
+#  ★ 交互式平台选择
 # ════════════════════════════════════════════════════════════════
 
 def select_platform_interactive() -> str:
-    print("\n" + "╔" + "═"*54 + "╗")
-    print("║" + "  消融实验 + BASELINE 评论质量评估脚本".center(56) + "║")
-    print("╚" + "═"*54 + "╝\n")
-    print("  请选择目标平台：")
-    print("    1. 🎵  抖音 (Douyin)")
-    print("    2. 📺  YouTube\n")
+    """
+    启动时交互式询问用户要评估哪个平台。
+    返回 "douyin"、"youtube" 或 "both"。
+    """
+    print(f"\n{'╔'+'═'*60+'╗'}")
+    print(f"║{'  评论质量评估脚本'.center(62)}║")
+    print(f"{'╚'+'═'*60+'╝'}\n")
+    print("  请选择要评估的平台：\n")
+    print("    1.  🎵  抖音 (Douyin)")
+    print("    2.  📺  YouTube")
+    print("    3.  🎵📺  两个平台都评（分开输出）\n")
+
+    mapping = {
+        "1": "douyin",  "douyin":  "douyin",
+        "2": "youtube", "youtube": "youtube",
+        "3": "both",    "both":    "both",
+    }
     while True:
-        c = input("  输入 1 或 2（或 douyin/youtube）：").strip().lower()
-        if c in ("1","douyin"):  return "douyin"
-        if c in ("2","youtube"): return "youtube"
-        print("  ⚠️  无效输入")
+        choice = input("  请输入选项（1 / 2 / 3）：").strip().lower()
+        if choice in mapping:
+            selected = mapping[choice]
+            labels   = {"douyin": "抖音", "youtube": "YouTube", "both": "抖音 + YouTube"}
+            print(f"\n  ✅ 已选择：{labels[selected]}\n")
+            return selected
+        print("  ⚠️  无效输入，请输入 1、2 或 3")
 
 
 # ════════════════════════════════════════════════════════════════
-#  主入口
+#  ★ 主入口
 # ════════════════════════════════════════════════════════════════
 
 def main():
     parser = argparse.ArgumentParser(
-        description="消融实验 + BASELINE 多模型对比 评论质量评估",
+        description="评论质量评估脚本（支持抖音 / YouTube / 两者分开评估）",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
-三种打分对象：
-  ① BASELINE 多模型对比  baseline_results.json  （完整 RAG，四模型正常输出）
-  ② 消融实验             ablation_all_results.json  （EXP-1/2/3/4）
-  ③ 额外评论通道         --extra 指定的 JSON 文件
+平台选择：
+  不指定 --platform 时进入交互式选择菜单。
+  --platform douyin   仅评估抖音
+  --platform youtube  仅评估 YouTube
+  --platform both     两个平台都评，分开输出
 
-额外评论 JSON 格式（每文件是一个 list）：
-  [{"video_id":"1","url":"1.mp4","label":"","comment":"...","video_description":"..."}, ...]
+评估来源（默认全部开启）：
+  外部系统    evaluation/baseline/{platform}/ 下的所有 .json 文件
+              包含 GPT-4o / LOLgorithm / V2Xum-LLM / livechat
+  BASELINE    ablation_results/{platform}/baseline_results.json
+              完整 RAG Pipeline，四模型正常输出
+  消融实验    ablation_results/{platform}/ablation_all_results.json
+              EXP-1/2/3/4，各四模型
 
-输出文件：
-  ablation_eval_detail.json     所有条目详细得分
-  ablation_eval_summary.csv     消融实验：实验类型 × 生成模型
-  baseline_eval_summary.csv     BASELINE：按生成模型
-  ablation_eval_extra.csv       额外评论（有 --extra 时）
-  ablation_eval_combined.csv    三组统一对比表
+参考基线（原平台评论）—— 两平台各自独立子目录：
+  evaluation/original_comment_from_platform/
+    douyin/    ← 该目录下所有 .json 用于抖音打分
+    youtube/   ← 该目录下所有 .json 用于 YouTube 打分
+
+输出文件（evaluation/result/）：
+  all_eval_detail.json           全来源所有条目明细（一个 JSON）
+  douyin_eval_summary.csv        抖音：来源 × 模型 均值/std 汇总
+  youtube_eval_summary.csv       YouTube：来源 × 模型 均值/std 汇总
+  douyin_eval_combined.csv       抖音：各来源一行对比表
+  youtube_eval_combined.csv      YouTube：各来源一行对比表
 
 示例：
-  python ablation_evaluator.py --platform douyin
-  python ablation_evaluator.py --platform douyin --extra GPT-4o.json LOLgorithm.json
-  python ablation_evaluator.py --platform douyin --no-ablation --extra my.json
+  python evaluator.py                        # 交互选平台，全量评估
+  python evaluator.py --platform douyin      # 直接指定抖音
+  python evaluator.py --platform youtube     # 直接指定 YouTube
+  python evaluator.py --platform both        # 两个平台都评
+  python evaluator.py --platform douyin --no-ablation   # 抖音，跳过消融实验
 """
     )
-    parser.add_argument("--platform", choices=["douyin","youtube"], default=None)
-    parser.add_argument("--input", default=None, metavar="FILE",
-                        help="消融实验结果文件（默认自动推断）")
-    parser.add_argument("--baseline-input", default=None, metavar="FILE",
-                        help="BASELINE 结果文件（默认自动推断）")
-    parser.add_argument("--extra", nargs="+", default=[], metavar="FILE",
-                        help="额外评论 JSON 文件（可多个，文件名作为来源标签）")
-    parser.add_argument("--sample-files", nargs="+", default=None, metavar="FILE",
-                        help="学习样本文件（可多个，覆盖默认）")
-    parser.add_argument("--reference-file", default=None, metavar="FILE",
-                        help="参考基线文件（覆盖默认）")
-    parser.add_argument("--no-ablation", action="store_true",
-                        help="跳过消融实验结果评分")
-    parser.add_argument("--no-baseline", action="store_true",
-                        help="跳过 BASELINE 多模型对比评分")
-    parser.add_argument("--eval-dir", default=None, metavar="DIR",
-                        help="输出目录（覆盖默认）")
-
+    parser.add_argument(
+        "--platform",
+        choices=["douyin", "youtube", "both"],
+        default=None,
+        metavar="PLATFORM",
+        help="要评估的平台：douyin / youtube / both（不指定则交互选择）",
+    )
+    parser.add_argument("--no-external", action="store_true", help="跳过外部对比系统评分")
+    parser.add_argument("--no-baseline", action="store_true", help="跳过 BASELINE 评分")
+    parser.add_argument("--no-ablation", action="store_true", help="跳过消融实验评分")
+    parser.add_argument(
+        "--eval-dir", default=None, metavar="DIR",
+        help=f"输出目录（默认 {DEFAULT_EVAL_DIR}）",
+    )
     args = parser.parse_args()
 
-    # ── 平台 & 配置 ───────────────────────────────────────────
-    platform = args.platform or select_platform_interactive()
-    cfg      = dict(PLATFORM_CFG[platform])
-    cfg["platform"] = platform
+    # ── 平台选择 ──────────────────────────────────────────────
+    platform_choice = args.platform or select_platform_interactive()
 
-    ablation_path  = args.input          or cfg["ablation_all"]
-    baseline_path  = args.baseline_input or cfg["baseline_file"]
-    reference_file = args.reference_file or cfg["reference_file"]
-    sample_files   = args.sample_files   or cfg["sample_files"]
-    eval_dir       = args.eval_dir       or cfg["eval_dir"]
+    if platform_choice == "both":
+        platforms = ["douyin", "youtube"]
+    else:
+        platforms = [platform_choice]
 
-    # ── 文件存在性检查 ─────────────────────────────────────────
-    run_ablation = not args.no_ablation and os.path.exists(ablation_path)
-    run_baseline = not args.no_baseline and os.path.exists(baseline_path)
+    eval_dir     = args.eval_dir or DEFAULT_EVAL_DIR
+    run_external = not args.no_external
+    run_baseline = not args.no_baseline
+    run_ablation = not args.no_ablation
 
-    if not args.no_ablation and not os.path.exists(ablation_path):
-        print(f"  [警告] 消融实验文件不存在：{ablation_path}，跳过消融实验评分")
-    if not args.no_baseline and not os.path.exists(baseline_path):
-        print(f"  [警告] BASELINE 文件不存在：{baseline_path}，跳过 BASELINE 评分")
+    os.makedirs(eval_dir, exist_ok=True)
 
-    if not run_ablation and not run_baseline and not args.extra:
-        print("  [错误] 无任何可评估的数据，请检查输入文件。"); return
+    # ── 打印配置摘要 ──────────────────────────────────────────
+    plat_label = " + ".join(p.upper() for p in platforms)
+    print(f"\n{'═'*70}")
+    print(f"  平台          ：{plat_label}")
+    print(f"  外部系统评分  ：{'✅ 开启' if run_external else '⏭ 跳过'}")
+    print(f"  BASELINE 评分 ：{'✅ 开启' if run_baseline else '⏭ 跳过'}")
+    print(f"  消融实验评分  ：{'✅ 开启' if run_ablation else '⏭ 跳过'}")
+    print(f"  输出目录      ：{eval_dir}")
+    print(f"{'═'*70}")
 
-    # ── 打印配置 ──────────────────────────────────────────────
-    print(f"\n{'═'*64}")
-    print(f"  平台              ：{platform.upper()}")
-    print(f"  消融实验文件      ：{'跳过' if not run_ablation else ablation_path}")
-    print(f"  BASELINE 文件     ：{'跳过' if not run_baseline else baseline_path}")
-    print(f"  额外评论文件      ：{args.extra if args.extra else '[无]'}")
-    print(f"  输出目录          ：{eval_dir}")
-    print(f"{'═'*64}\n")
-
-    # ── 初始化模型 ────────────────────────────────────────────
+    # ── 预加载模型（统一提前，两平台共享同一实例）────────────
     get_sbert()
-    get_sentiment_pipeline()
+    get_sentiment()
 
-    # ── 预加载数据 ────────────────────────────────────────────
-    sample_vecs             = load_sample_embeddings(sample_files)
-    reference_specificities = load_reference_specificities(reference_file)
-
-    # ── 评分 ──────────────────────────────────────────────────
+    # ── 逐平台评估 ────────────────────────────────────────────
     all_rows = []
-
-    # ① BASELINE
-    if run_baseline:
-        records = load_json(baseline_path)
-        print(f"\n  ── ① BASELINE 评分（{len(records)} 条视频 × 4 模型）")
-        rows = evaluate_records(records, sample_vecs, reference_specificities,
-                                cfg, source_type="baseline", desc="BASELINE")
+    for platform in platforms:
+        rows = evaluate_platform(
+            platform     = platform,
+            run_external = run_external,
+            run_baseline = run_baseline,
+            run_ablation = run_ablation,
+        )
         all_rows.extend(rows)
-        print(f"  ✅ BASELINE 打分完成（{len(rows)} 条）")
 
-    # ② 消融实验
-    if run_ablation:
-        records = load_json(ablation_path)
-        print(f"\n  ── ② 消融实验评分（{len(records)} 条视频 × 4 模型）")
-        rows = evaluate_records(records, sample_vecs, reference_specificities,
-                                cfg, source_type="ablation", desc="消融实验")
-        all_rows.extend(rows)
-        print(f"  ✅ 消融实验打分完成（{len(rows)} 条）")
-
-    # ③ 额外评论
-    if args.extra:
-        ext_rows = evaluate_extra_comments(
-            args.extra, sample_vecs, reference_specificities, cfg)
-        all_rows.extend(ext_rows)
-        print(f"  ✅ 额外评论打分完成（{len(ext_rows)} 条）")
+        # 每个平台评完立即打印该平台的报告，不等另一个平台完成
+        if rows:
+            print(f"\n{'─'*70}")
+            print(f"  {platform.upper()} 评分完成，生成报告 ...")
+            print_report(rows)   # 只传当前平台的行，报告只显示该平台
 
     if not all_rows:
-        print("\n  [警告] 没有任何评论参与评分"); return
+        print("\n  [错误] 没有任何评论参与评分，请检查输入文件路径。")
+        return
 
-    # ── 保存 & 报告 ───────────────────────────────────────────
-    save_and_print_report(all_rows, eval_dir, platform)
+    # ── 保存全量结果（all_eval_detail.json 含所有平台）────────
+    print(f"\n{'═'*70}")
+    print(f"  保存结果中 ...")
+    save_results(all_rows, eval_dir)
+
+    print(f"\n{'═'*70}")
+    total_plat = len(set(r["platform"] for r in all_rows))
+    print(f"  ✅ 全部评估完成！")
+    print(f"     平台数    ：{total_plat}（{plat_label}）")
+    print(f"     总记录数  ：{len(all_rows)} 条")
+    print(f"     输出目录  ：{eval_dir}")
+    print(f"{'═'*70}\n")
 
 
 if __name__ == "__main__":
