@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消融实验配置器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:    #07080d;
+  --s1:    #0d0f16;
+  --s2:    #131520;
+  --s3:    #191b25;
+  --bd:    #22242f;
+  --bd2:   #2e3040;
+  --tx:    #d8dce8;
+  --mu:    #545870;
+  --dm:    #363848;
+
+  --c1: #4f9cf9;   /* EXP-1: 蓝 */
+  --c2: #a78bfa;   /* EXP-2: 紫 */
+  --c3: #34d399;   /* EXP-3: 绿 */
+  --c4: #fb923c;   /* EXP-4: 橙 */
+
+  --cq: #6366f1;   /* qwen3.5 */
+  --cg: #ec4899;   /* glm */
+  --cd: #14b8a6;   /* deepseek */
+  --cm: #f59e0b;   /* minimax */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--tx); font-family: 'Space Grotesk', sans-serif; min-height: 100vh; }
+
+.page { max-width: 1120px; margin: 0 auto; padding: 40px 20px 90px; }
+
+/* Header */
+header { margin-bottom: 38px; padding-bottom: 26px; border-bottom: 1px solid var(--bd); }
+.hrow { display: flex; align-items: center; gap: 13px; margin-bottom: 8px; }
+.logo { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg,var(--c1),var(--c2)); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+h1 { font-size: 20px; font-weight: 700; }
+.badge { font-family: 'IBM Plex Mono',monospace; font-size: 10px; padding: 2px 8px; border-radius: 3px; background: rgba(79,156,249,.1); color: var(--c1); border: 1px solid rgba(79,156,249,.18); letter-spacing: .07em; }
+.sub { font-size: 13px; color: var(--mu); line-height: 1.6; }
+
+/* Layout */
+.layout { display: grid; grid-template-columns: 1fr 325px; gap: 18px; align-items: start; }
+@media(max-width:800px){ .layout { grid-template-columns: 1fr; } }
+
+/* Section label */
+.sec { font-family: 'IBM Plex Mono',monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mu); margin-bottom: 9px; display: flex; align-items: center; gap: 8px; }
+.sec::after { content:''; flex:1; height:1px; background: var(--bd); }
+
+/* Card */
+.card { background: var(--s1); border: 1px solid var(--bd); border-radius: 10px; margin-bottom: 13px; }
+.ch { display: flex; align-items: center; gap: 9px; padding: 11px 15px; border-bottom: 1px solid var(--bd); background: var(--s2); border-radius: 9px 9px 0 0; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ch h2 { font-size: 12px; font-weight: 600; }
+.mono { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); background: var(--s3); padding: 2px 6px; border-radius: 3px; }
+.cb { padding: 13px 15px; }
+
+/* Experiment cards */
+.egrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 13px; }
+@media(max-width:580px){ .egrid { grid-template-columns: 1fr; } }
+
+.ec {
+  border: 1.5px solid var(--bd); border-radius: 8px; padding: 12px 14px;
+  cursor: pointer; user-select: none; position: relative;
+  background: var(--s2); transition: border-color .15s, background .15s;
+}
+.ec:hover { border-color: var(--bd2); }
+.ec.on { background: var(--s3); }
+.ec.on.e1 { border-color: var(--c1); }
+.ec.on.e2 { border-color: var(--c2); }
+.ec.on.e3 { border-color: var(--c3); }
+.ec.on.e4 { border-color: var(--c4); }
+
+.eid { font-family: 'IBM Plex Mono',monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; margin-bottom: 4px; color: var(--mu); }
+.ec.on.e1 .eid { color: var(--c1); }
+.ec.on.e2 .eid { color: var(--c2); }
+.ec.on.e3 .eid { color: var(--c3); }
+.ec.on.e4 .eid { color: var(--c4); }
+
+.ename { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.edesc { font-size: 11px; color: var(--mu); line-height: 1.55; }
+.evar { margin-top: 7px; display: inline-block; font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--dm); background: var(--s1); padding: 2px 7px; border-radius: 3px; }
+.ec.on .evar { color: var(--mu); }
+
+.ec::after { content:'✓'; position:absolute; top:10px; right:12px; font-size:11px; font-weight:700; opacity:0; transition: opacity .15s; }
+.ec.on.e1::after { color: var(--c1); opacity:1; }
+.ec.on.e2::after { color: var(--c2); opacity:1; }
+.ec.on.e3::after { color: var(--c3); opacity:1; }
+.ec.on.e4::after { color: var(--c4); opacity:1; }
+
+/* Pipeline */
+.prow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; font-family: 'IBM Plex Mono',monospace; font-size: 10.5px; }
+.ps { padding: 3px 7px; border-radius: 3px; white-space: nowrap; border: 1px solid var(--bd); background: var(--s3); color: var(--mu); }
+.ps.act { color: var(--tx); background: var(--s2); border-color: var(--bd2); }
+.ps.hi { color: #7dd3a8; border-color: rgba(125,211,168,.35); background: rgba(125,211,168,.07); }  /* 变化点 */
+.ps.warn { color: #fca5a5; border-color: rgba(252,165,165,.35); background: rgba(252,165,165,.06); } /* 缺少/置空 */
+.pa { color: var(--dm); padding: 0 3px; font-size: 9px; }
+
+/* Model pills */
+.mprow { display: flex; flex-wrap: wrap; gap: 7px; }
+.mp { cursor: pointer; user-select: none; border: 1.5px solid var(--bd); border-radius: 6px; padding: 5px 12px; font-family: 'IBM Plex Mono',monospace; font-size: 12px; color: var(--mu); background: var(--s2); transition: all .15s; }
+.mp:hover { border-color: var(--bd2); color: var(--tx); }
+.mp.on { color: #fff; }
+.mp.on.mq { background: var(--cq); border-color: var(--cq); }
+.mp.on.mg { background: var(--cg); border-color: var(--cg); }
+.mp.on.md { background: var(--cd); border-color: var(--cd); }
+.mp.on.mm { background: var(--cm); border-color: var(--cm); color: #1a0e00; }
+
+/* Right col */
+.rcol { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 13px; }
+
+/* Stats */
+.srow { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.sb { background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; padding: 11px 13px; text-align: center; }
+.sn { display: block; font-family: 'IBM Plex Mono',monospace; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+.sl { font-size: 10px; color: var(--mu); text-transform: uppercase; letter-spacing: .07em; }
+
+/* Terminal */
+.tw { background: #060709; border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; }
+.tb { display: flex; align-items: center; gap: 5px; padding: 7px 11px; background: var(--s2); border-bottom: 1px solid var(--bd); }
+.td { width: 7px; height: 7px; border-radius: 50%; }
+.tl { font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); margin-left: 4px; }
+.tc { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 9px; color: var(--mu); cursor: pointer; padding: 2px 7px; border: 1px solid var(--bd); border-radius: 3px; background: none; transition: all .15s; }
+.tc:hover { border-color: var(--bd2); color: var(--tx); }
+.tt { padding: 13px 14px; font-family: 'IBM Plex Mono',monospace; font-size: 11px; line-height: 1.9; color: #7dd3a8; white-space: pre-wrap; word-break: break-all; }
+.kw { color: #79b8ff; } .fl { color: #ffab70; } .vl { color: #9ecbff; }
+
+/* File list */
+.fl { display: flex; flex-direction: column; gap: 5px; margin-bottom: 13px; }
+.fi { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: var(--s2); border: 1px solid var(--bd); border-radius: 6px; }
+.fn { font-family: 'IBM Plex Mono',monospace; font-size: 11px; }
+.fd { font-size: 10px; color: var(--mu); margin-top: 2px; }
+.fi.hi { border-color: rgba(79,156,249,.22); background: rgba(79,156,249,.04); }
+
+/* Legend */
+.lgrow { display: flex; flex-direction: column; gap: 5px; }
+.li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.ld { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.lf { margin-left: auto; font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--mu); background: var(--s3); padding: 1px 5px; border-radius: 3px; }
+
+hr { border: none; border-top: 1px solid var(--bd); margin: 9px 0; }
+code { font-family: 'IBM Plex Mono',monospace; font-size: 11px; background: var(--s3); padding: 1px 5px; border-radius: 3px; }
+::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="hrow">
+    <div class="logo">🧪</div>
+    <h1>消融实验配置器</h1>
+    <span class="badge">ABLATION LAB</span>
+  </div>
+  <p class="sub">为抖音视频评论生成系统配置消融实验，选择实验类型与对比模型，实时生成命令行</p>
+</header>
+
+<div class="layout">
+<div><!-- LEFT -->
+
+  <div class="sec">实验类型（多选，保留至少一种）</div>
+  <div class="egrid">
+
+    <div class="ec e1 on" data-exp="1" onclick="toggleExp(this)">
+      <div class="eid">EXP-1</div>
+      <div class="ename">有简介 + 直接生成</div>
+      <div class="edesc">Step2 正常获取简介；Phase2 直接调用模型生成，<strong>不传任何示例，不确定 c_label</strong></div>
+      <span class="evar">验证：RAG 示例检索的整体贡献</span>
+    </div>
+
+    <div class="ec e2 on" data-exp="2" onclick="toggleExp(this)">
+      <div class="eid">EXP-2</div>
+      <div class="ename">无简介 + 直接生成</div>
+      <div class="edesc">Step2 <strong>简介置空</strong>；Phase2 直接调用模型生成，不传任何示例</div>
+      <span class="evar">验证：video_introduction 的独立贡献</span>
+    </div>
+
+    <div class="ec e3 on" data-exp="3" onclick="toggleExp(this)">
+      <div class="eid">EXP-3</div>
+      <div class="ename">同 label 随机模仿</div>
+      <div class="edesc">完整 Phase1；Phase2 在<strong>相同 label 样本中随机抽评论</strong>作示例，不确定 c_label</div>
+      <span class="evar">验证：语义检索相似性 vs 同label随机</span>
+    </div>
+
+    <div class="ec e4 on" data-exp="4" onclick="toggleExp(this)">
+      <div class="eid">EXP-4</div>
+      <div class="ename">跨 label 随机模仿</div>
+      <div class="edesc">完整 Phase1；Phase2 随机抽取<strong>不同 label</strong> 的评论作为示例</div>
+      <span class="evar">验证：label 分类精度（Step3）的影响</span>
+    </div>
+
+  </div>
+
+  <!-- Pipeline 对比 -->
+  <div class="card">
+    <div class="ch">
+      <div class="dot" style="background:var(--c1)"></div>
+      <h2>各实验 Pipeline 对比</h2>
+      <span class="mono" style="color:#7dd3a8">绿 = 差异点 / 红 = 缺失/置空</span>
+    </div>
+    <div class="cb" id="pipe-body"></div>
+  </div>
+
+  <!-- 模型选择 -->
+  <div class="sec">Phase2 评论生成对比模型（多选）</div>
+  <div class="card">
+    <div class="ch">
+      <div class="dot" style="background:var(--cq)"></div>
+      <h2>评论生成模型</h2>
+      <span class="mono">字段：{model}_generated_comment</span>
+    </div>
+    <div class="cb">
+      <div class="mprow">
+        <div class="mp mq on" data-model="qwen3.5" onclick="toggleModel(this)">qwen3.5</div>
+        <div class="mp mg on" data-model="glm" onclick="toggleModel(this)">glm</div>
+        <div class="mp md on" data-model="deepseek-r1" onclick="toggleModel(this)">deepseek-r1</div>
+        <div class="mp mm on" data-model="minimax" onclick="toggleModel(this)">minimax</div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--mu)">
+        ⚠️ 运行前请先 <code>ollama pull &lt;模型名&gt;</code> 拉取所有对比模型
+      </div>
+    </div>
+  </div>
+
+  <!-- 参数 -->
+  <div class="card">
+    <div class="ch"><div class="dot" style="background:var(--mu)"></div><h2>运行参数</h2></div>
+    <div class="cb" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="skip1" onchange="update()" style="accent-color:var(--c1)">
+        <code>--skip-phase1</code>
+        <span style="font-size:11px;color:var(--mu)">Phase1 已完成</span>
+      </label>
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px">
+        <code>--top-k</code>
+        <input type="number" id="topk" value="3" min="1" max="10" onchange="update()"
+          style="width:46px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px">
+        <code>--examples-per-sample</code>
+        <input type="number" id="eps" value="2" min="1" max="5" onchange="update()"
+          style="width:46px;background:var(--s2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+      </div>
+    </div>
+  </div>
+
+  <!-- 输出文件 -->
+  <div class="sec">输出文件说明</div>
+  <div class="fl" id="file-list"></div>
+
+</div><!-- /LEFT -->
+
+<div class="rcol"><!-- RIGHT -->
+
+  <div class="srow">
+    <div class="sb">
+      <span class="sn" id="se" style="color:var(--c1)">4</span>
+      <span class="sl">实验类型</span>
+    </div>
+    <div class="sb">
+      <span class="sn" id="sm" style="color:var(--cq)">4</span>
+      <span class="sl">对比模型</span>
+    </div>
+  </div>
+
+  <div class="tw">
+    <div class="tb">
+      <div class="td" style="background:#ff5f57"></div>
+      <div class="td" style="background:#febc2e"></div>
+      <div class="td" style="background:#28c840"></div>
+      <span class="tl">terminal</span>
+      <button class="tc" onclick="copyCmd()">复制</button>
+    </div>
+    <div class="tt" id="tt"></div>
+  </div>
+
+  <div class="card">
+    <div class="ch"><div class="dot" style="background:var(--dm)"></div><h2>每条记录的评论字段</h2></div>
+    <div class="cb">
+      <div class="lgrow" id="lgrow"></div>
+      <hr>
+      <div style="font-size:11px;color:var(--mu);line-height:1.85">
+        同时包含：<br>
+        <code style="color:var(--tx)">ablation_exp_type</code> — EXP-1/EXP-2/EXP-3/EXP-4<br>
+        <code style="color:var(--tx)">ablation_exp_name</code> — 实验名称<br>
+        <code style="color:var(--tx)">ablation_variable</code> — 消融的变量<br>
+        <code style="color:var(--tx)">ablation_exp_pipeline</code> — 完整 Pipeline<br>
+        <code style="color:var(--tx)">exp_phase2_mode</code> — Phase2生成模式<br>
+        <code style="color:var(--tx)">exp_examples_count</code> — 示例数量（EXP-1/2为0）
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ch"><div class="dot" style="background:var(--dm)"></div><h2>ablation_results/ 目录</h2></div>
+    <div class="cb" style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:2.1;color:var(--mu)">
+      <div id="tree"></div>
+    </div>
+  </div>
+
+</div><!-- /RIGHT -->
+</div>
+</div>
+
+<script>
+const selE = new Set(["1","2","3","4"]);
+const selM = new Set(["qwen3.5","glm","deepseek-r1","minimax"]);
+
+const EC = { "1":"var(--c1)", "2":"var(--c2)", "3":"var(--c3)", "4":"var(--c4)" };
+const MC = { "qwen3.5":"var(--cq)", "glm":"var(--cg)", "deepseek-r1":"var(--cd)", "minimax":"var(--cm)" };
+
+// EXP-1: Step2(full)→Step4→Step5→Phase2(直接生成)        Step3 不在 pipeline
+// EXP-2: Step2(无简介)→Step4→Step5→Step3→Phase2(直接生成)
+// EXP-3: Step2(full)→Step4→Step5→Step3→Phase2(同label随机)
+// EXP-4: Step2(full)→Step4→Step5→Step3→Phase2(跨label随机)
+const PIPES = {
+  "1": [
+    {l:"Step1",  cls:"act"},
+    {l:"Step2 (含简介)", cls:"act"},
+    {l:"Step4",  cls:"act"},
+    {l:"Step5",  cls:"act"},
+    // 无 Step3
+    {l:"Phase2: 直接生成", cls:"hi", note:"不传任何示例"},
+  ],
+  "2": [
+    {l:"Step1",  cls:"act"},
+    {l:"Step2 (简介置空)", cls:"warn"},
+    {l:"Step4",  cls:"act"},
+    {l:"Step5",  cls:"act"},
+    {l:"Step3",  cls:"act"},
+    {l:"Phase2: 直接生成", cls:"hi", note:"不传任何示例"},
+  ],
+  "3": [
+    {l:"Step1",  cls:"act"},
+    {l:"Step2 (含简介)", cls:"act"},
+    {l:"Step4",  cls:"act"},
+    {l:"Step5",  cls:"act"},
+    {l:"Step3",  cls:"act"},
+    {l:"Phase2: 同label随机示例", cls:"hi"},
+  ],
+  "4": [
+    {l:"Step1",  cls:"act"},
+    {l:"Step2 (含简介)", cls:"act"},
+    {l:"Step4",  cls:"act"},
+    {l:"Step5",  cls:"act"},
+    {l:"Step3",  cls:"act"},
+    {l:"Phase2: 跨label随机示例", cls:"hi"},
+  ],
+};
+const VARS = {
+  "1": "RAG 示例检索的整体贡献",
+  "2": "video_introduction 的独立贡献（与EXP-1对比）",
+  "3": "语义检索相似性 vs 同label随机抽取",
+  "4": "label 分类精度（Step3）的影响",
+};
+
+function toggleExp(el) {
+  const e = el.dataset.exp;
+  if (selE.has(e)) {
+    if (selE.size <= 1) return;
+    selE.delete(e); el.classList.remove("on");
+  } else {
+    selE.add(e); el.classList.add("on");
+  }
+  update();
+}
+function toggleModel(el) {
+  const m = el.dataset.model;
+  if (selM.has(m)) {
+    if (selM.size <= 1) return;
+    selM.delete(m); el.classList.remove("on");
+  } else {
+    selM.add(m); el.classList.add("on");
+  }
+  update();
+}
+
+function renderPipes() {
+  const body = document.getElementById("pipe-body");
+  const exps = [...selE].sort();
+  body.innerHTML = exps.map((e, idx) => {
+    const color = EC[e];
+    const steps = PIPES[e].map((s, i) => {
+      const arrow = i < PIPES[e].length - 1 ? '<span class="pa">→</span>' : '';
+      const title = s.note ? ` title="${s.note}"` : '';
+      return `<span class="ps ${s.cls}"${title}>${s.l}</span>${arrow}`;
+    }).join('');
+    const sep = idx > 0 ? '<hr>' : '';
+    return `${sep}<div style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:${color}">EXP-${e}</span>
+        <span style="font-size:11px;color:var(--mu)">${VARS[e]}</span>
+      </div>
+      <div class="prow">${steps}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderFiles() {
+  const el = document.getElementById("file-list");
+  const exps = [...selE].sort();
+  el.innerHTML = exps.map(e => `<div class="fi">
+    <div style="font-size:13px;margin-top:1px">📄</div>
+    <div>
+      <div class="fn" style="color:${EC[e]}">ablation_exp_${e}.json</div>
+      <div class="fd">EXP-${e} — ${VARS[e]}</div>
+    </div>
+  </div>`).join('') +
+  `<div class="fi hi">
+    <div style="font-size:13px;margin-top:1px">📦</div>
+    <div>
+      <div class="fn">ablation_all_results.json</div>
+      <div class="fd">全部 ${exps.length} 类实验合并，<code>ablation_exp_type</code> 字段区分</div>
+    </div>
+  </div>
+  <div class="fi">
+    <div style="font-size:13px;margin-top:1px">📋</div>
+    <div>
+      <div class="fn">ablation_summary.json</div>
+      <div class="fd">实验配置、耗时统计、字段说明</div>
+    </div>
+  </div>`;
+}
+
+function renderLegend() {
+  document.getElementById("lgrow").innerHTML = [...selM].map(m => `<div class="li">
+    <div class="ld" style="background:${MC[m]}"></div>
+    <span>${m}</span>
+    <span class="lf">${m}_generated_comment</span>
+  </div>`).join('');
+}
+
+function renderTree() {
+  const exps = [...selE].sort();
+  document.getElementById("tree").innerHTML =
+    exps.map(e => `<div><span style="color:${EC[e]}">ablation_exp_${e}.json</span></div>`).join('') +
+    `<div><span style="color:var(--c1)">ablation_all_results.json</span></div>` +
+    `<div>ablation_summary.json</div>`;
+}
+
+function buildCmd() {
+  const exps   = [...selE].sort();
+  const models = [...selM];
+  const skip   = document.getElementById("skip1").checked;
+  const topk   = document.getElementById("topk").value;
+  const eps    = document.getElementById("eps").value;
+  let parts = ["python ablation_experiment.py"];
+  if (exps.length < 4)   parts.push("--exp " + exps.join(" "));
+  if (models.length < 4) parts.push("--models " + models.join(" "));
+  if (skip)              parts.push("--skip-phase1");
+  if (topk !== "3")      parts.push("--top-k " + topk);
+  if (eps  !== "2")      parts.push("--examples-per-sample " + eps);
+  return parts.join(" \\\n  ");
+}
+
+function hl(s) {
+  return s
+    .replace(/(python)/g, '<span class="kw">$1</span>')
+    .replace(/(ablation_experiment\.py)/g, '<span class="kw">$1</span>')
+    .replace(/(--[\w-]+)/g, '<span class="fl">$1</span>')
+    .replace(/\b(qwen3\.5|glm|deepseek-r1|minimax)\b/g, '<span class="vl">$1</span>')
+    .replace(/(?<= )([1-4])(?= |$)/g, '<span class="vl">$1</span>');
+}
+
+function update() {
+  document.getElementById("se").textContent = selE.size;
+  document.getElementById("sm").textContent = selM.size;
+  document.getElementById("tt").innerHTML   = hl(buildCmd());
+  renderPipes(); renderFiles(); renderLegend(); renderTree();
+}
+
+function copyCmd() {
+  navigator.clipboard.writeText(buildCmd()).then(() => {
+    const b = document.querySelector(".tc");
+    b.textContent = "✓ 已复制";
+    setTimeout(() => b.textContent = "复制", 1400);
+  });
+}
+
+update();
+</script>
+</body>
+</html>

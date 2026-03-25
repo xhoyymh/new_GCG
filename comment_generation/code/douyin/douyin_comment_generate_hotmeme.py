@@ -21,6 +21,14 @@
   pip install selenium playwright DrissionPage tqdm opencv-python openai-whisper pydub
               requests ollama numpy jieba beautifulsoup4
   playwright install chromium
+
+根据这个脚本设计消融实验，同时加入选择，在step3和step5以及phase2中可以选择glm或者deepseek-r1或者minimax-m2.5 来替换qwen3.5
+注意消融实验是
+1.有phase1中的step1、2、4、5＋直接调用模型对视频内容生成评论
+2.有phase1中的step1、4、5、3＋直接调用模型对视频内容生成评论，step2只下载视频，不下载简介，简介用空的
+3.有phase1的全部step，但是phase2不用确定c_label及示例评论，而是直接随机在相同的label的视频中随机模仿评论
+4.有phase1的step1、2、4、5、3，但是phase2直接在样本中随机抽取非视频相同label的评论来模仿
+同时注意多种的模型的对比实验生成的结果一起保存在同一个文件中，但是要写成模型名＋generate_comment，好知道哪个评论是哪个模型生成的，消融实验结果也要按照上面四个类型一起保存在同一个文件中，注名好分别是什么实验的结果
 """
 
 import os
