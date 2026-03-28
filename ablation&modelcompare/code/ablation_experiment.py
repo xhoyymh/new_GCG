@@ -82,8 +82,8 @@ MODEL_ALIASES = {
     "llama":     "llama4:latest",
 }
 ALL_MODELS  = list(MODEL_ALIASES.keys())
-STEP3_MODEL = "qwen3.5"   # Step3/Step5 固定，不作为消融变量
-STEP5_MODEL = "qwen3.5"
+STEP3_MODEL = "qwen3.5:latest"   # Step3/Step5 固定，不作为消融变量
+STEP5_MODEL = "qwen3.5:latest"
 EMBED_MODEL = "qwen3-embedding:latest"
 
 # ── Phase 1 参数 ───────────────────────────────────────────────
