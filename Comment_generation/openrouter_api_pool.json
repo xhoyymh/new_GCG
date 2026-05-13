@@ -1,0 +1,9 @@
+{
+  "api_keys": [
+    "api_keys"
+  ],
+  "base_url": "https://openrouter.ai/api/v1",
+  "timeout_seconds": 90,
+  "app_title": "GCG Comment Generation",
+  "temperature": 0.8
+}
