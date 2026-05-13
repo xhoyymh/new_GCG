@@ -1,6 +1,0 @@
-2026/03/24-04:07:44.974 8ac4 Reusing MANIFEST D:\Desktop\video_comment_generation\ALLinone\data_pre\userdata_douyin\Default\Local Storage\leveldb/MANIFEST-000001
-2026/03/24-04:07:44.977 8ac4 Recovering log #196
-2026/03/24-04:07:44.978 8ac4 Reusing old log D:\Desktop\video_comment_generation\ALLinone\data_pre\userdata_douyin\Default\Local Storage\leveldb/000196.log 
-2026/03/24-04:10:13.777 ff8 Level-0 table #200: started
-2026/03/24-04:10:13.779 ff8 Level-0 table #200: 44438 bytes OK
-2026/03/24-04:10:13.780 ff8 Delete type=0 #196
